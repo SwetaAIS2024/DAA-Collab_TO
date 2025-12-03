@@ -24,6 +24,9 @@ from utils.intent_extraction import user_intent_extraction
 from utils.intent_classification import user_intent_classification
 from utils.smart_mcp_tool_lookup import ToolMap
 
+from mcp_tools import load_and_analyze_csv
+
+
 """Tool functions are now sourced from external mcp_tools.py."""
 import mcp_tools
 import inspect
