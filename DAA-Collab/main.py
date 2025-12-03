@@ -20,6 +20,26 @@ from pathlib import Path
 # LangGraph minimal imports
 from langgraph.graph import StateGraph, END
 
+from utils.intent_extraction import user_intent_extraction
+from utils.intent_classification import user_intent_classification
+from utils.smart_mcp_tool_lookup import ToolMap
+
+"""Tool functions are now sourced from external mcp_tools.py."""
+import mcp_tools
+import inspect
+
+# Auto-discover only MCP tool functions (decorated with @mcp.tool())
+legacy_tool_dictionary = {}
+for name, obj in inspect.getmembers(mcp_tools, inspect.isfunction):
+    # Only include functions actually defined in mcp_tools (exclude imports)
+    if not name.startswith('_') and hasattr(obj, '__module__') and obj.__module__ == 'mcp_tools':
+        # Optional: Further filter to only @mcp.tool() decorated functions
+        # Check if function has MCP tool markers (decorated functions often have special attributes)
+        # For now, we include all functions - helper functions won't break anything
+        legacy_tool_dictionary[name] = obj
+
+TOOL_MAP = ToolMap(legacy_tool_dictionary)
+
 # -------------------------------
 # State definition
 # -------------------------------
@@ -35,6 +55,7 @@ class AgentState:
     next_step_index: int = 0
     raw_execution_output: Optional[str] = None
     error_log: List[str] = field(default_factory=list)
+    intent_classification: Optional[Dict[str, bool]] = None
 
 # -------------------------------
 # Utility helpers
@@ -64,6 +85,17 @@ def classify_intent(instr: str) -> Dict[str, bool]:
     }
 
 
+def classify_intent_custom(instr: str) -> Dict[str, bool]:
+
+    user_instruction = instr.lower()
+
+    intent_extraction_result = user_intent_extraction(user_instruction)
+
+    intent_classification_result = user_intent_classification(intent_extraction_result)
+
+    return intent_classification_result
+
+
 def infer_plot_type(instr: str) -> str:
     low = instr.lower()
     if "histogram" in low: return "histogram"
@@ -88,12 +120,7 @@ def infer_plot_columns(plot_type: str, numeric: List[str], categorical: List[str
         return {"columns_for_pairplot": numeric[:5]}
     return None
 
-"""Tool functions are now sourced from external mcp_tools.py."""
-from mcp_tools import (
-    load_and_analyze_csv,
-    perform_advanced_eda_on_csv,
-    generate_basic_plot,
-)
+
 
 # -------------------------------
 # Planner node
@@ -121,7 +148,11 @@ def planner_node(state: AgentState) -> AgentState:
     meta = state.profile_meta or {}
     numeric = meta.get("numeric_columns", [])
     categorical = meta.get("text_columns", [])
-    intent = classify_intent(state.instruction)
+    
+    # intent = classify_intent(state.instruction)
+    
+    intent = state.intent_classification or {}
+
 
     steps: List[Dict[str, Any]] = []
     # Always first overview
@@ -138,7 +169,7 @@ def planner_node(state: AgentState) -> AgentState:
             "why": "advanced EDA"
         })
 
-    if intent["visualization"]:
+    elif intent["visualization"]:
         plot_type = infer_plot_type(state.instruction)
         col_args = infer_plot_columns(plot_type, numeric, categorical)
         if col_args:
@@ -148,7 +179,7 @@ def planner_node(state: AgentState) -> AgentState:
                 "args": args,
                 "why": "requested visualization"
             })
-
+    
     state.plan_json = json.dumps({"steps": steps}, ensure_ascii=False)
     state.plan_steps = steps
     state.next_step_index = 0
@@ -157,11 +188,7 @@ def planner_node(state: AgentState) -> AgentState:
 # -------------------------------
 # Execute node
 # -------------------------------
-TOOL_MAP = {
-    "load_and_analyze_csv": load_and_analyze_csv,
-    "perform_advanced_eda_on_csv": perform_advanced_eda_on_csv,
-    "generate_basic_plot": generate_basic_plot,
-}
+
 
 def execute_node(state: AgentState) -> AgentState:
     outputs: List[str] = []
@@ -182,16 +209,73 @@ def execute_node(state: AgentState) -> AgentState:
     return state
 
 # -------------------------------
+# Custom intent classification node
+# -------------------------------
+
+def intent_classifier_node(state: AgentState) -> AgentState:
+    """Classify user intent from instruction."""
+    state.intent_classification = classify_intent_custom(state.instruction)
+    return state
+
+# -------------------------------
+# Custom MCP tool generator node
+# -------------------------------
+
+def mcp_tool_generator_node(state: AgentState) -> AgentState:
+    """Placeholder for MCP tool generator node."""
+    # Currently, this node does not modify the state.
+    if state.plan_steps:
+        # If plan_steps already exist, skip tool generation
+        return state
+
+    else :
+
+                # Plan is empty, ask LLM to create full plan
+        prompt = f"""
+                    Given:
+                    - User instruction: {state.instruction}
+                    - Detected intents: {state.intent_classification}
+                    - Dataset info: {state.profile_meta}
+
+                    Generate a JSON plan with steps to execute.
+                    Each step should have: tool, args, why
+                """
+                        
+        # TODO: Call on-prem LLM
+        # steps_llm = call_onprem_llm(prompt)
+        # state.plan_json = json.dumps({"steps": steps_llm}, ensure_ascii=False)
+        # state.plan_steps = steps_llm
+        # state.next_step_index = 0
+        
+        state.error_log.append("TODO: Generate plan with LLM")
+        return state
+
+# -------------------------------
 # Graph construction
 # -------------------------------
 
 def build_graph():
+
+    # Create graph
     g = StateGraph(AgentState)
+    
+    # Add nodes
+    g.add_node("intent_classifier", intent_classifier_node)
     g.add_node("planner", planner_node)
+    # placeholder for mcp tool generator
+    g.add_node("tool_generator", mcp_tool_generator_node)
     g.add_node("executor", execute_node)
-    g.set_entry_point("planner")
-    g.add_edge("planner", "executor")
+    
+    # Define edges
+    # g.set_entry_point("planner")
+    g.set_entry_point("intent_classifier")
+    g.add_edge("intent_classifier", "planner")
+    # g.add_edge("planner", "executor")
+    g.add_edge("planner", "tool_generator")
+    g.add_edge("tool_generator", "executor")
     g.add_edge("executor", END)
+    
+    # Compile graph
     return g.compile()
 
 # -------------------------------

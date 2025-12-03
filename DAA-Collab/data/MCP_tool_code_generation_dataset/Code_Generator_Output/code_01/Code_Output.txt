@@ -1,0 +1,113 @@
+================================================================================
+DATASET ANALYSIS: DAA-Collab/data/MCP_tool_code_generation_dataset/User_Input/code_01/dataset.csv
+================================================================================
+
+Total Prompts: 1000
+
+Unique Intent Labels Found: 9
+
+Intent Labels:
+  1. causal_analysis
+  2. incident_classification
+  3. incident_detection
+  4. meta_attributes
+  5. spatio_temporal
+  6. traffic_anomaly
+  7. traffic_forecasting
+  8. traffic_impact
+  9. visualization
+
+================================================================================
+INTENT FREQUENCY DISTRIBUTION
+================================================================================
+  spatio_temporal                :  626 occurrences ( 62.6% of prompts)
+  incident_detection             :  315 occurrences ( 31.5% of prompts)
+  traffic_impact                 :  254 occurrences ( 25.4% of prompts)
+  causal_analysis                :  129 occurrences ( 12.9% of prompts)
+  visualization                  :  121 occurrences ( 12.1% of prompts)
+  traffic_anomaly                :  118 occurrences ( 11.8% of prompts)
+  meta_attributes                :  106 occurrences ( 10.6% of prompts)
+  incident_classification        :   56 occurrences (  5.6% of prompts)
+  traffic_forecasting            :   41 occurrences (  4.1% of prompts)
+
+================================================================================
+MULTI-INTENT ANALYSIS
+================================================================================
+  Prompts with 0 intents: 59 (5.9%)
+  Prompts with 1 intent:  331 (33.1%)
+  Prompts with 2 intents: 431 (43.1%)
+  Prompts with 3 intents: 144 (14.4%)
+  Prompts with 4 intents: 34 (3.4%)
+  Prompts with 5+ intents: 1 (0.1%)
+
+  Average intents per prompt: 1.77
+  Max intents in single prompt: 5
+
+================================================================================
+SAMPLE PROMPTS WITH EMPTY INTENTS
+================================================================================
+  ID 17 : Need info on the volume spike at expressway interchanges since morning...
+  ID 37 : Help me understand the volume spike downtown CBD right now?...
+  ID 71 : Please pull up traffic situation along Thomson Road and compare with y...
+  ID 84 : Double check the speed drop along Thomson Road just now?...
+  ID 121: Someone reported the volume spike downtown CBD in simple terms pls....
+  ID 135: Can we confirm whether it's due to roadwork at expressway interchanges...
+  ID 156: Hey, can you check the speed drop at AYE westbound in simple terms pls...
+  ID 183: Someone reported whether it's due to roadwork along the PIE since morn...
+  ID 198: I suspect traffic situation at AYE westbound without the minor events....
+  ID 203: Hey, can you check traffic situation downtown CBD just now?...
+
+================================================================================
+SAMPLE PROMPTS WITH 4+ INTENTS
+================================================================================
+  ID 15 : ['incident_detection', 'incident_classification', 'traffic_anomaly', 'spatio_temporal']
+        I'm seeing unusual readings near incident severity along the PIE...
+
+  ID 49 : ['causal_analysis', 'incident_detection', 'incident_classification', 'spatio_temporal']
+        Any idea why incident severity near Sengkang right now?...
+
+  ID 73 : ['incident_detection', 'traffic_anomaly', 'spatio_temporal', 'visualization']
+        I'm seeing unusual readings near today’s accidents at expressway inter...
+
+  ID 76 : ['causal_analysis', 'traffic_anomaly', 'spatio_temporal', 'traffic_impact']
+        I'm seeing unusual readings near what caused the jam at expressway int...
+
+  ID 115: ['causal_analysis', 'spatio_temporal', 'traffic_impact', 'meta_attributes']
+        Any idea why the impact level near KPE tunnels and check weather too....
+
+  ID 216: ['causal_analysis', 'traffic_anomaly', 'spatio_temporal', 'traffic_impact']
+        I'm seeing unusual readings near what caused the jam around Punggol bu...
+
+  ID 250: ['causal_analysis', 'incident_detection', 'spatio_temporal', 'visualization']
+        Any idea why today’s accidents around Toa Payoh no visualisation neede...
+
+  ID 261: ['incident_detection', 'incident_classification', 'spatio_temporal', 'meta_attributes']
+        Someone reported incident severity around Toa Payoh and check weather ...
+
+  ID 264: ['causal_analysis', 'spatio_temporal', 'traffic_impact', 'visualization']
+        Please pull up what caused the jam around Punggol no visualisation nee...
+
+  ID 290: ['incident_detection', 'incident_classification', 'traffic_anomaly', 'spatio_temporal']
+        I'm seeing unusual readings near incident severity in the northern sec...
+
+
+================================================================================
+TOP INTENT COMBINATIONS (2+ intents)
+================================================================================
+  106x: incident_detection, spatio_temporal
+   96x: spatio_temporal, traffic_impact
+   55x: spatio_temporal, traffic_anomaly
+   34x: meta_attributes, spatio_temporal
+   33x: causal_analysis, spatio_temporal, traffic_impact
+   21x: incident_classification, incident_detection, spatio_temporal
+   20x: causal_analysis, traffic_impact
+   19x: spatio_temporal, traffic_forecasting
+   18x: incident_classification, incident_detection
+   15x: incident_detection, visualization
+   15x: incident_detection, spatio_temporal, visualization
+   15x: spatio_temporal, visualization
+   12x: causal_analysis, spatio_temporal
+   11x: spatio_temporal, traffic_impact, visualization
+   11x: incident_detection, meta_attributes
+
+================================================================================

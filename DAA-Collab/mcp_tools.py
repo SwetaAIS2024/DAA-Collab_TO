@@ -797,3 +797,36 @@ def generate_basic_plot(
     except Exception as e:
         cleanup_plot()
         return f"Error generating plot: {str(e)}"
+
+
+
+# placeholders for potential future tools
+
+@mcp.tool()
+def causal_analysis_tool():
+    pass
+
+@mcp.tool()
+def incident_detection_tool():  
+    pass
+
+@mcp.tool()
+def incident_classification_tool():
+    pass
+
+@mcp.tool()
+def traffic_anomaly_tool():
+    pass    
+
+@mcp.tool()
+def traffic_forecasting_tool():
+    pass
+
+@mcp.tool()
+def spatial_temporal_tool():
+    pass
+
+@mcp.tool()
+def traffic_impact_tool():
+    pass
+
