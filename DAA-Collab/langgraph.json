@@ -1,0 +1,9 @@
+{
+    "dependencies": [
+        "."
+    ],
+    "graphs": {
+        "my_agent": "./DAA-Collab/main.py:agent"
+    },
+    "env": ".env"
+}
