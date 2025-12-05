@@ -11,4 +11,7 @@ pandas
 matplotlib
 seaborn
 scikit-learn
+mcp 
+anthropic-mcp-sdk
+
 
