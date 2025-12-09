@@ -2,7 +2,7 @@
 # CLI / Runner
 # -------------------------------
 
-from func.graph.graph_build import build_graph
+from func.graph.graph_build_complex import build_graph
 from func.state.agent_state import AgentState
 from utils.common import make_seed_text
 

@@ -14,7 +14,7 @@ def classify_intent(instr: str) -> Dict[str, bool]:
     }
 
 
-def intent_classifier_node(state: AgentState) -> AgentState:
+def intent_classification(state: AgentState) -> AgentState:
     """Classify user intent from instruction."""
 
     user_instruction = state.instruction.lower()

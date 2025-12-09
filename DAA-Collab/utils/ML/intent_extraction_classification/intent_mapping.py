@@ -1,5 +1,5 @@
 from typing import Dict, List
-from intent_keywords_static import (
+from utils.ML.intent_extraction_classification.intent_keywords_static import (
     VISUALIZATION_KEYWORDS, 
     ADVANCED_KEYWORDS,
     CAUSAL_ANALYSIS_KEYWORDS,

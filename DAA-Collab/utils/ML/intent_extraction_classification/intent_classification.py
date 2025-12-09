@@ -1,5 +1,5 @@
 from typing import Dict, List
-from intent_mapping import INTENT_MAPPING
+from utils.ML.intent_extraction_classification.intent_mapping import INTENT_MAPPING
 
 
 def user_intent_classification(intent_extracted: List[str]) -> Dict[str, bool]:
