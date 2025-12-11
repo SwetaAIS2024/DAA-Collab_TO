@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional
 class AgentState:
     instruction: str
     dataset_path: str
-    seed_text: str
+    seed_text: Optional[str] = None
     profile_report: Optional[str] = None
     profile_meta: Optional[Dict[str, Any]] = None
     plan_json: Optional[str] = None
@@ -19,5 +19,6 @@ class AgentState:
     error_log: List[str] = field(default_factory=list)
     intent_classification: Optional[Dict[str, bool]] = None
     missing_tools: List[str] = field(default_factory=list)
+    intent_extracted: Optional[List[str]] = None
 
 

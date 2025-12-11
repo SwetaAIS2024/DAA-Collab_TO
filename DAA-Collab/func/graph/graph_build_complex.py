@@ -12,9 +12,12 @@ from func.graph.subgraphs.planner_sg import build_planner_subgraph
 from func.graph.subgraphs.execute_sg import build_execution_subgraph
 from func.nodes.output_logging_node import output_formatter, logger
 
+# Step 1: Train the ML model (one-time setup)
+from utils.ML.intent_extraction_classification.ml_intent_classification import train_intent_classifier
+train_intent_classifier()
 
 
-
+# Step 2: Build the main graph
 def build_graph():
 
     g = StateGraph(AgentState)

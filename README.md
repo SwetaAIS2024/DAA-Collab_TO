@@ -1,6 +1,13 @@
 # DAA-Collab
 
 
+
+pip install spacy
+python -m spacy download en_core_web_sm
+
+
+
+```
 DAA-Collab/
 ├── data
 │   ├── dataset_from_DB_Agent
@@ -44,3 +51,5 @@ DAA-Collab/
 ├── .env # environment variables
 ├── requirements.txt # package dependencies
 └── langgraph.json # configuration file for LangGraph
+
+```
