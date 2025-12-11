@@ -15,4 +15,5 @@ mcp
 anthropic-mcp-sdk
 spacy
 joblib
+sentence_transformers
 

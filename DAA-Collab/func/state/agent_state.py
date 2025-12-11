@@ -19,6 +19,5 @@ class AgentState:
     error_log: List[str] = field(default_factory=list)
     intent_classification: Optional[Dict[str, bool]] = None
     missing_tools: List[str] = field(default_factory=list)
-    intent_extracted: Optional[List[str]] = None
 
 
