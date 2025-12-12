@@ -21,3 +21,4 @@ offline_cache
 
 # Explicitly ignore the specific large model folder just in case
 **/models--Alibaba-NLP--gte-large-en-v1.5/
+**/saved_models_transformer/.locks
