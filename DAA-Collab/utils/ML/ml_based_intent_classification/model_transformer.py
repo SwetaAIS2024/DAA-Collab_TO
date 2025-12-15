@@ -7,8 +7,11 @@ import numpy as np
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 from utils.common import preprocess_prompt
+import torch
 
-MODEL_NAME = 'Alibaba-NLP/gte-large-en-v1.5'
+# MODEL_NAME = 'Alibaba-NLP/gte-large-en-v1.5'
+
+MODEL_NAME = 'Qwen/Qwen3-Embedding-8B'
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../.."))
 sys.path.append(os.path.join(BASE_DIR, "DAA-Collab"))
 DATA_PATH = os.path.join(BASE_DIR, "DAA-Collab/data/user_prompt_dataset/traffic_prompts_realistic_option2_FIXED.csv")
@@ -16,11 +19,18 @@ MODEL_DIR = os.path.join(BASE_DIR,"DAA-Collab/utils/ML/ml_based_intent_classific
 
 os.makedirs(MODEL_DIR, exist_ok=True)
 
+# Detect device
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+print(f"🖥️ Using device: {DEVICE}")
+if DEVICE == "cuda":
+    print(f"   GPU: {torch.cuda.get_device_name(0)}")
+
+
 # Load pre-trained sentence transformer (cache for offline use)
 try:
     # model = SentenceTransformer('all-MiniLM-L6-v2', cache_folder=MODEL_DIR) 
-    model = SentenceTransformer(MODEL_NAME, cache_folder = MODEL_DIR, trust_remote_code=True)
-    print("✅ Sentence Transformer model loaded")
+    model = SentenceTransformer(MODEL_NAME, cache_folder = MODEL_DIR, trust_remote_code=True, device=DEVICE)
+    print("✅ Sentence Transformer model loaded on device:", DEVICE)
 except Exception as e:
     print(f"⚠️ Error loading Sentence Transformer: {e}")
     print("   Run: pip install sentence-transformers")
@@ -116,7 +126,16 @@ def train_intent_classifier(include_memory_data: bool = False):
         # Use top 100 examples per intent (or all if less)
         sample_examples = examples[:100]
         print(f"  Encoding {intent}: {len(sample_examples)} examples...")
-        embeddings = model.encode(sample_examples, show_progress_bar=False)
+
+        # changes for using the GPU for the embedding computation
+        embeddings = model.encode(
+            sample_examples, 
+            show_progress_bar=True,
+            batch_size=32, # << HERE 
+            convert_to_numpy=True,
+            normalize_embeddings=True,
+            device=DEVICE # << HERE 
+            )
         # Average embedding as prototype
         intent_prototypes[intent] = np.mean(embeddings, axis=0)
     
@@ -156,9 +175,10 @@ def load_intent_classifier() -> Tuple[Dict[str, np.ndarray], List[str]]:
 def predict_intents_ml(
     prompt: str, 
     threshold: float = 0.7, 
+    unknown_threshold: float = 0.5,
     debug: bool = True,
     store_in_memory: bool = False
-) -> Tuple[List[str], Dict[str, float]]:
+) -> Tuple[List[str], Dict[str, float], List[str]]:
     """
     Predict intents using semantic similarity.
     
@@ -199,6 +219,8 @@ def predict_intents_ml(
         # Ensure float for JSON serialization
         similarities[intent] = float(similarity)
     
+    top_intent, top_score = max(similarities.items(), key=lambda x: x[1])
+
     if debug:
         print(f"\n{'='*80}")
         print("SEMANTIC SIMILARITY SCORES")
@@ -210,19 +232,125 @@ def predict_intents_ml(
     
     # Apply threshold
     predicted = [intent for intent, score in similarities.items() if score > threshold]
+
+    # FIX: Use unknown_threshold to decide if LLM extraction is needed
+    unknown_intents = []
     
-    # Fallback: if no intents detected, return top intent if above minimum
-    if not predicted and similarities:
-        top_intent, top_score = max(similarities.items(), key=lambda x: x[1])
+    # Trigger LLM extraction if:
+    # 1. No known intents detected, OR
+    # 2. Top similarity is below unknown_threshold (suggests potential unknown intents)
+    if not predicted or top_score < unknown_threshold:
+        if debug:
+            if not predicted:
+                print(f"⚠️  No known intents detected (all scores < {threshold})")
+            if top_score < unknown_threshold:
+                print(f"⚠️  Top similarity ({top_score:.3f}) < unknown_threshold ({unknown_threshold})")
+            print(f"   Triggering LLM for unknown intent extraction...\n")
+        
+        unknown_intents = extract_unknown_intents_with_llm(
+            prompt=prompt,
+            known_intents=predicted,
+            known_intent_classes=intent_classes,
+            debug=debug
+        )
+    
+    # Fallback: if no intents detected at all, return top intent if above minimum
+    if not predicted and not unknown_intents:
         if top_score > 0.3:  # Minimum fallback threshold
             predicted = [top_intent]
             if debug:
                 print(f"⚠️  Fallback: Using top intent '{top_intent}' (score: {top_score:.3f})\n")
     
     if debug:
-        print(f"Predicted intents (threshold={threshold}): {predicted}\n")
+        print(f"Predicted known intents: {predicted}")
+        if unknown_intents:
+            print(f"Detected unknown intents: {unknown_intents}")
+        print()
     
-    return predicted, similarities
+    return predicted, similarities, unknown_intents
+
+
+def extract_unknown_intents_with_llm(
+    prompt: str,
+    known_intents: List[str],
+    known_intent_classes: List[str],
+    debug: bool = False
+) -> List[str]:
+    """
+    Use LLM to extract intents not covered by known intent classes.
+    
+    Args:
+        prompt: Original user prompt
+        known_intents: Already detected known intents
+        known_intent_classes: All available known intent types
+        debug: Print debug info
+        
+    Returns:
+        List of unknown intent descriptions extracted by LLM
+    """
+    from langchain_openai import ChatOpenAI
+    from langchain_core.messages import SystemMessage, HumanMessage
+    import json
+    
+    try:
+        # Initialize LLM
+        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+        
+        # Create extraction prompt
+        system_prompt = f"""You are an intent extraction expert for traffic analysis systems.
+
+        Known intent types in the system:
+        {', '.join(known_intent_classes)}
+
+        Your task:
+        1. Analyze the user prompt
+        2. Identify ANY intents or tasks mentioned
+        3. Compare against the known intent types
+        4. Extract ONLY the intents that are NOT covered by the known types
+
+        Return ONLY a JSON array of unknown intent descriptions. If all intents are covered by known types, return an empty array.
+
+        Example:
+        User: "Detect incidents and generate a PDF report"
+        Known intents detected: ["incident_detection"]
+        Unknown intents: ["report_generation", "pdf_export"]
+
+        Output: ["report_generation", "pdf_export"]"""
+
+        human_prompt = f"""User prompt: "{prompt}"
+
+        Known intents already detected: {known_intents if known_intents else "None"}
+
+        Extract unknown intents as JSON array:"""
+
+        messages = [
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=human_prompt)
+        ]
+        
+        # Call LLM
+        response = llm.invoke(messages)
+        
+        # Parse response
+        try:
+            unknown_intents = json.loads(str(response.content))
+            if not isinstance(unknown_intents, list):
+                unknown_intents = []
+        except json.JSONDecodeError:
+            # Fallback: try to extract from text
+            unknown_intents = []
+            if debug:
+                print(f"⚠️  Failed to parse LLM response as JSON: {response.content}")
+        
+        if debug and unknown_intents:
+            print(f"\n🔍 LLM extracted unknown intents: {unknown_intents}")
+        
+        return unknown_intents
+        
+    except Exception as e:
+        if debug:
+            print(f"⚠️  Error in LLM unknown intent extraction: {e}")
+        return []
 
 
 if __name__ == "__main__":

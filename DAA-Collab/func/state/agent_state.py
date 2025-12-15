@@ -19,10 +19,13 @@ class AgentState:
     error_log: List[str] = field(default_factory=list)
 
     # ML-based intent classification results
-    intent_classification: Optional[Dict[str, bool]] = None
+    intent_classification: Optional[Dict[str, List[str]]] = None
     predicted_classified_intents: List[str] = field(default_factory=list)
     intent_confidence_scores: Dict[str, float] = field(default_factory=dict)
     classification_success: bool = False
+    known_intents: List[str] = field(default_factory=list)
+    unknown_intents: List[str] = field(default_factory=list)
+    needs_tool_generation: bool = False
 
     # Graph execution state
     execution_id: Optional[str] = None # Unique ID for the graph execution

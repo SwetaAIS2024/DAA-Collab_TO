@@ -41,8 +41,10 @@ from utils.ML.ml_based_intent_classification.model_transformer import (
 
 def user_intent_classification_ml_based(
     prompt: str, 
-    threshold: float = 0.85
-) -> Tuple[Dict[str, bool], Dict[str, float], List[str]]:
+    threshold: float = 0.85,
+    unknown_threshold: float = 0.5,
+    debug: bool = True
+) -> Tuple[Dict[str, List[str]], Dict[str, float], List[str], List[str]]:
     """
     ML-based intent classification using Sentence Transformers semantic similarity.
     
@@ -73,17 +75,30 @@ def user_intent_classification_ml_based(
         )
     
     # Get predicted intents and confidence scores
-    predicted_intents, confidence_scores = predict_intents_ml(
+    predicted_intents, confidence_scores, unknown_intents = predict_intents_ml(
         prompt=prompt,
         threshold=threshold,
-        debug=True,
+        unknown_threshold=unknown_threshold,
+        debug=debug,
         store_in_memory=False  # Memory handled by LangGraph node
     )
     
-    # Convert to boolean dict with ALL possible intents
+    all_intents = predicted_intents.copy()
+
+    for unknown in unknown_intents:
+        all_intents.append(f"unknown:{unknown}")
+
+    # # Convert to boolean dict with ALL possible intents
+    # intent_classification_result = {
+    #     intent: (intent in predicted_intents) 
+    #     for intent in intent_classes
+    # }
+
     intent_classification_result = {
-        intent: (intent in predicted_intents) 
-        for intent in intent_classes
+        "intents": all_intents,
+        "known_intents": predicted_intents,
+        "unknown_intents": unknown_intents
     }
-    
-    return intent_classification_result, confidence_scores, predicted_intents
+
+
+    return intent_classification_result, confidence_scores, predicted_intents, unknown_intents

@@ -51,26 +51,32 @@ def intent_classification(state: AgentState) -> AgentState:
     print(f"User Input: {user_instruction}\n")
     
     try:
-        # Perform intent classification
-        intent_dict, confidence_scores, predicted_intents = user_intent_classification_ml_based(
-            prompt=user_instruction,
-            threshold=0.85
-        )
-        
+
         # Get preprocessed prompt for metadata
         preprocessed = preprocess_prompt(user_instruction, debug=False)
+
+        # Perform intent classification
+        intent_dict, confidence_scores, predicted_intents, unknown_intents = user_intent_classification_ml_based(
+            prompt=preprocessed['cleaned'],
+            threshold=0.85,
+            unknown_threshold=0.5,
+            debug=True
+        )
         
         # Store in LangGraph memory
         memory = get_intent_memory()
         checkpoint_id = memory.store_interaction(
             prompt=user_instruction,
             cleaned_prompt=preprocessed['cleaned'],
-            predicted_intents=predicted_intents,
-            confidence_scores=confidence_scores,  # Now consistent Dict[str, float]
+            predicted_intents=intent_dict['intents'],  # Combined known + unknown
+            confidence_scores=confidence_scores,
             metadata={
                 'temporal_entities': preprocessed.get('temporal_entities', []),
                 'spatial_entities': preprocessed.get('spatial_entities', []),
                 'threshold': 0.85,
+                'unknown_threshold': 0.5,
+                'known_intents': predicted_intents,
+                'unknown_intents': unknown_intents,
                 'node_name': 'intent_classification',
                 'graph_execution_id': state.execution_id,
                 'preprocessing_steps': preprocessed.get('processing_steps', [])
@@ -79,8 +85,11 @@ def intent_classification(state: AgentState) -> AgentState:
         
         print(f"💾 Stored in LangGraph Memory")
         print(f"   Checkpoint ID: {checkpoint_id}")
-        print(f"   Detected Intents: {predicted_intents}")
-        print(f"\nTop 5 Confidence Scores:")
+        print(f"   Known Intents: {predicted_intents}")
+        print(f"   Unknown Intents: {unknown_intents}")
+        print(f"   Combined: {intent_dict['intents']}")
+        
+        print(f"\nTop 5 Confidence Scores (Known Intents):")
         for intent, score in sorted(confidence_scores.items(), key=lambda x: x[1], reverse=True)[:5]:
             status = "✓" if intent in predicted_intents else " "
             print(f"   [{status}] {intent:25s}: {score:.3f}")
@@ -88,9 +97,16 @@ def intent_classification(state: AgentState) -> AgentState:
         # Update state
         state.intent_classification = intent_dict
         state.mem_checkpoint_id = checkpoint_id
-        state.predicted_classified_intents = predicted_intents
+        state.predicted_classified_intents = intent_dict['intents']  # All intents
+        state.known_intents = predicted_intents
+        state.unknown_intents = unknown_intents
         state.intent_confidence_scores = confidence_scores
         state.classification_success = True
+        state.needs_tool_generation = len(unknown_intents) > 0
+        
+        if unknown_intents:
+            print(f"\n⚠️  Detected {len(unknown_intents)} unknown intent(s)")
+            print(f"   These may require MCP tool generation or clarification")
         
     except FileNotFoundError as e:
         print(f"\n❌ ERROR: {e}")

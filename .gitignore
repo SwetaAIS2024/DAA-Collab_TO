@@ -8,6 +8,8 @@ venv/
 env/
 ENV/
 daa_venv/
+d_venv/
+d_venv
 *.venv
 offline_cache/
 offline_cache

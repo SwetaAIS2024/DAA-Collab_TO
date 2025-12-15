@@ -1,5 +1,16 @@
 # DAA-Collab
 
+# for training 
+
+```bash
+python -m venv <name>
+.\<name>\Scripts\activate
+or 
+source .\<name>\Scripts\activate
+pip install -r  .\DAA-Collab\requirements.txt
+python .\DAA-Collab\utils\ML\ml_based_intent_classification\standalone_training.py
+```
+
 ### Prerequisites
 ```bash
 pip install spacy sentence-transformers

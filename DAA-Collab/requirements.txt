@@ -16,4 +16,5 @@ mcp
 spacy
 joblib
 sentence_transformers
-
+torch
+langchain_openai
