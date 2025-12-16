@@ -41,7 +41,7 @@ from utils.ML.ml_based_intent_classification.model_transformer import (
 
 def user_intent_classification_ml_based(
     prompt: str, 
-    threshold: float = 0.85,
+    threshold: float = 0.7,
     unknown_threshold: float = 0.5,
     debug: bool = True
 ) -> Tuple[Dict[str, List[str]], Dict[str, float], List[str], List[str]]:
@@ -86,7 +86,7 @@ def user_intent_classification_ml_based(
     all_intents = predicted_intents.copy()
 
     for unknown in unknown_intents:
-        all_intents.append(f"unknown:{unknown}")
+        all_intents.append(unknown)
 
     # # Convert to boolean dict with ALL possible intents
     # intent_classification_result = {

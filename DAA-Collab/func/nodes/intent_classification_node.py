@@ -58,7 +58,7 @@ def intent_classification(state: AgentState) -> AgentState:
         # Perform intent classification
         intent_dict, confidence_scores, predicted_intents, unknown_intents = user_intent_classification_ml_based(
             prompt=preprocessed['cleaned'],
-            threshold=0.85,
+            threshold=0.700,
             unknown_threshold=0.5,
             debug=True
         )

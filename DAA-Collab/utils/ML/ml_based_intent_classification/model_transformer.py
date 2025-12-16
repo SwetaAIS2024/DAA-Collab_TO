@@ -12,6 +12,7 @@ import torch
 # MODEL_NAME = 'Alibaba-NLP/gte-large-en-v1.5'
 
 MODEL_NAME = 'Qwen/Qwen3-Embedding-8B'
+MODEL_EXTRACT_UNKNOWN = 'Qwen/Qwen2.5-7B-Instruct' # this model is used for extracting the unknown intents
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../.."))
 sys.path.append(os.path.join(BASE_DIR, "DAA-Collab"))
 DATA_PATH = os.path.join(BASE_DIR, "DAA-Collab/data/user_prompt_dataset/traffic_prompts_realistic_option2_FIXED.csv")
@@ -35,6 +36,36 @@ except Exception as e:
     print(f"⚠️ Error loading Sentence Transformer: {e}")
     print("   Run: pip install sentence-transformers")
     model = None
+
+# For the unknown intent extraction LLM
+ext_llm_tokenizer = None 
+ext_llm_model = None
+
+def load_extraction_llm():
+    global ext_llm_tokenizer, ext_llm_model
+    try:
+        if ext_llm_model is None or ext_llm_tokenizer is None:
+            from transformers import AutoTokenizer, AutoModelForCausalLM
+            print(f"🔄 Loading extraction LLM model: {MODEL_EXTRACT_UNKNOWN}")
+            ext_llm_tokenizer = AutoTokenizer.from_pretrained(
+                MODEL_EXTRACT_UNKNOWN, 
+                cache_dir=MODEL_DIR, 
+                trust_remote_code=True
+                )
+            ext_llm_model = AutoModelForCausalLM.from_pretrained(
+                MODEL_EXTRACT_UNKNOWN, 
+                cache_dir=MODEL_DIR, 
+                trust_remote_code=True, 
+                dtype=torch.float16 if DEVICE=="cuda" else torch.float32,
+                device_map="auto" if DEVICE=="cuda" else None,
+                low_cpu_mem_usage=True
+                )
+            print("✅ Extraction LLM model loaded.")
+    except Exception as e:
+        print(f"⚠️ Error loading extraction LLM: {e}")
+        ext_llm_tokenizer = None
+        ext_llm_model = None
+    return ext_llm_tokenizer, ext_llm_model
 
 
 def train_intent_classifier(include_memory_data: bool = False):
@@ -233,28 +264,16 @@ def predict_intents_ml(
     # Apply threshold
     predicted = [intent for intent, score in similarities.items() if score > threshold]
 
-    # FIX: Use unknown_threshold to decide if LLM extraction is needed
-    unknown_intents = []
+    # ALWAYS run LLM extraction for unknown intents
+    # This runs in parallel to known intent detection
+    unknown_intents = extract_unknown_intents_with_llm(
+        prompt=prompt,
+        known_intents=predicted,
+        known_intent_classes=intent_classes,
+        debug=debug
+    )
     
-    # Trigger LLM extraction if:
-    # 1. No known intents detected, OR
-    # 2. Top similarity is below unknown_threshold (suggests potential unknown intents)
-    if not predicted or top_score < unknown_threshold:
-        if debug:
-            if not predicted:
-                print(f"⚠️  No known intents detected (all scores < {threshold})")
-            if top_score < unknown_threshold:
-                print(f"⚠️  Top similarity ({top_score:.3f}) < unknown_threshold ({unknown_threshold})")
-            print(f"   Triggering LLM for unknown intent extraction...\n")
-        
-        unknown_intents = extract_unknown_intents_with_llm(
-            prompt=prompt,
-            known_intents=predicted,
-            known_intent_classes=intent_classes,
-            debug=debug
-        )
-    
-    # Fallback: if no intents detected at all, return top intent if above minimum
+    # Fallback: if NO intents detected at all (known OR unknown), use top intent
     if not predicted and not unknown_intents:
         if top_score > 0.3:  # Minimum fallback threshold
             predicted = [top_intent]
@@ -262,10 +281,10 @@ def predict_intents_ml(
                 print(f"⚠️  Fallback: Using top intent '{top_intent}' (score: {top_score:.3f})\n")
     
     if debug:
-        print(f"Predicted known intents: {predicted}")
-        if unknown_intents:
-            print(f"Detected unknown intents: {unknown_intents}")
-        print()
+        print(f"\n📊 FINAL RESULTS:")
+        print(f"   Known intents: {predicted if predicted else 'None'}")
+        print(f"   Unknown intents: {unknown_intents if unknown_intents else 'None'}")
+        print(f"   Combined: {predicted + unknown_intents}\n")
     
     return predicted, similarities, unknown_intents
 
@@ -277,7 +296,7 @@ def extract_unknown_intents_with_llm(
     debug: bool = False
 ) -> List[str]:
     """
-    Use LLM to extract intents not covered by known intent classes.
+    Use LOCAL LLM to extract intents not covered by known intent classes.
     
     Args:
         prompt: Original user prompt
@@ -288,13 +307,16 @@ def extract_unknown_intents_with_llm(
     Returns:
         List of unknown intent descriptions extracted by LLM
     """
-    from langchain_openai import ChatOpenAI
-    from langchain_core.messages import SystemMessage, HumanMessage
     import json
     
     try:
-        # Initialize LLM
-        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+        # Load local LLM
+        load_extraction_llm()
+        
+        if ext_llm_tokenizer is None or ext_llm_model is None:
+            if debug:
+                print("⚠️  Local LLM not available, skipping unknown intent extraction")
+            return []
         
         # Create extraction prompt
         system_prompt = f"""You are an intent extraction expert for traffic analysis systems.
@@ -308,42 +330,72 @@ def extract_unknown_intents_with_llm(
         3. Compare against the known intent types
         4. Extract ONLY the intents that are NOT covered by the known types
 
-        Return ONLY a JSON array of unknown intent descriptions. If all intents are covered by known types, return an empty array.
+        Return ONLY a JSON array of unknown intent descriptions (1-3 words each). If all intents are covered by known types, return an empty array [].
 
         Example:
         User: "Detect incidents and generate a PDF report"
         Known intents detected: ["incident_detection"]
-        Unknown intents: ["report_generation", "pdf_export"]
+        Output: ["report_generation", "pdf_export"]
 
-        Output: ["report_generation", "pdf_export"]"""
+        Now analyze:"""
 
-        human_prompt = f"""User prompt: "{prompt}"
+        user_prompt = f"""User prompt: "{prompt}"
 
         Known intents already detected: {known_intents if known_intents else "None"}
 
-        Extract unknown intents as JSON array:"""
+        Unknown intents (JSON array):"""
 
+        # Format messages for Qwen
         messages = [
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=human_prompt)
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
         ]
         
-        # Call LLM
-        response = llm.invoke(messages)
+        # Apply chat template
+        text = ext_llm_tokenizer.apply_chat_template(
+            messages,
+            tokenize=False,
+            add_generation_prompt=True
+        )
         
-        # Parse response
+        # Tokenize
+        inputs = ext_llm_tokenizer([text], return_tensors="pt").to(DEVICE)
+        
+        # Generate
+        with torch.no_grad():
+            outputs = ext_llm_model.generate(
+                **inputs,
+                max_new_tokens=100,
+                temperature=0.5,
+                do_sample=True,
+                top_p=0.9,
+                pad_token_id=ext_llm_tokenizer.eos_token_id
+            )
+        
+        # Decode response
+        response = ext_llm_tokenizer.decode(outputs[0][len(inputs.input_ids[0]):], skip_special_tokens=True)
+        
+        if debug:
+            print(f"\n🤖 LLM Response: {response}")
+        
+        # Parse JSON response
         try:
-            unknown_intents = json.loads(str(response.content))
-            if not isinstance(unknown_intents, list):
+            # Extract JSON array from response (handles markdown code blocks)
+            import re
+            json_match = re.search(r'\[.*?\]', response, re.DOTALL)
+            if json_match:
+                unknown_intents = json.loads(json_match.group(0))
+                if not isinstance(unknown_intents, list):
+                    unknown_intents = []
+            else:
                 unknown_intents = []
         except json.JSONDecodeError:
-            # Fallback: try to extract from text
             unknown_intents = []
             if debug:
-                print(f"⚠️  Failed to parse LLM response as JSON: {response.content}")
+                print(f"⚠️  Failed to parse LLM response as JSON")
         
         if debug and unknown_intents:
-            print(f"\n🔍 LLM extracted unknown intents: {unknown_intents}")
+            print(f"🔍 Extracted unknown intents: {unknown_intents}")
         
         return unknown_intents
         
@@ -351,7 +403,6 @@ def extract_unknown_intents_with_llm(
         if debug:
             print(f"⚠️  Error in LLM unknown intent extraction: {e}")
         return []
-
 
 if __name__ == "__main__":
     print("\n🚀 Training Intent Classification Model\n")

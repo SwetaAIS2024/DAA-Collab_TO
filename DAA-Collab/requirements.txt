@@ -18,3 +18,5 @@ joblib
 sentence_transformers
 torch
 langchain_openai
+transformers
+accelerate
