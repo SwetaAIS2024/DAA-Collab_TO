@@ -164,19 +164,6 @@ Extracted using local LLM (Qwen2.5-7B-Instruct):
 
 ## Configuration
 
-### Adjust Thresholds
-
-Edit thresholds in intent_classification_node.py:
-
-```python
-intent_dict, confidence_scores, predicted_intents, unknown_intents = user_intent_classification_ml_based(
-    prompt=preprocessed['cleaned'],
-    threshold=0.700,         # Known intent threshold (0.0-1.0)
-    unknown_threshold=0.5,   # LLM confidence threshold
-    debug=True
-)
-```
-
 ### Enable GPU Acceleration
 
 In model_transformer.py:
@@ -185,32 +172,6 @@ In model_transformer.py:
 import torch
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-```
-
-## Memory & Continuous Learning
-
-### View Memory Statistics
-
-```python
-from utils.memory.episodic import get_intent_memory
-
-memory = get_intent_memory()
-stats = memory.get_statistics()
-
-print(f"Total interactions: {stats['total_interactions']}")
-print(f"Validated: {stats['validated_interactions']}")
-print(f"Intent distribution: {stats['intent_distribution']}")
-```
-
-### Export Training Data
-
-```python
-# Export validated interactions for retraining
-memory = get_intent_memory()
-csv_file = memory.export_to_training_dataset(
-    validated_only=True,
-    output_file="data/memory/validated_interactions.csv"
-)
 ```
 
 ### Retrain with Memory
@@ -273,18 +234,9 @@ DAA-Collab/
 │   └── episodic.py                     # Memory management
 ├── data/
 │   ├── user_prompt_dataset/            # Training data
-│   └── memory/                         # Interaction logs (auto-generated)
+│   └── memory/episodic                 # Interaction logs (auto-generated)
 └── test.py                             # Standalone testing
 ```
-
-## Performance Metrics
-
-| Metric | Value |
-|--------|-------|
-| Training Time | ~2-3 minutes (CPU), ~30 seconds (GPU) |
-| Inference Time | ~200-500ms per query |
-| Model Size | ~500MB (embeddings) + ~7GB (LLM) |
-| Memory Usage | ~8GB RAM recommended |
 
 ## Next Steps
 
@@ -315,7 +267,3 @@ DAA-Collab/
 - **Classification logic:** See model_transformer.py
 - **Memory management:** Review episodic.py
 - **LangGraph integration:** Check intent_classification_node.py
-
----
-
-**Ready to start? Run the training command above and test with a sample query!**
