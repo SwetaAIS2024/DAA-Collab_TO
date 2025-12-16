@@ -1,0 +1,321 @@
+## Overview
+
+This system classifies user intents using a **dual-model approach**:
+
+1. **Known Intent Classification** - Semantic similarity using Sentence Transformers
+2. **Unknown Intent Extraction** - LLM-based extraction for intents not in training data, or simply the unknown intent labels
+
+## Prerequisites
+
+```bash
+# 1. Create and activate virtual environment
+python -m venv d_venv
+.\d_venv\Scripts\activate  # Windows
+# source d_venv/bin/activate  # Linux/Mac
+
+# 2. Install dependencies
+pip install -r DAA-Collab/requirements.txt
+
+# 3. Download required models
+python -m spacy download en_core_web_sm
+```
+
+## System Architecture
+
+```
+User Query
+    ↓
+[Text Preprocessing] → Clean text, extract entities
+    ↓
+[Semantic Classifier] → Match against known intent prototypes whichever are present in the training data
+    ↓
+[LLM Extractor] → Identify unknown intents (parallel execution) - again which are not present in the training data
+    ↓
+[Memory Storage] → Save to LangGraph episodic memory
+    ↓
+[Combined Output] → Known + Unknown intents with confidence scores
+```
+
+## Supported Intent Classes
+
+| Intent | Description | Training Samples |
+|--------|-------------|------------------|
+| `spatio_temporal` | Location/time-based analysis | 626 |
+| `incident_detection` | Accident/crash detection | 315 |
+| `traffic_impact` | Delays, congestion analysis | 254 |
+| `causal_analysis` | Root cause investigation | 129 |
+| `visualization` | Charts, graphs, displays | 121 |
+| `traffic_anomaly` | Unusual pattern detection | 118 |
+| `meta_attributes` | Weather, external factors | 106 |
+| `incident_classification` | Severity categorization | 56 |
+| `traffic_forecasting` | Future trend prediction | 41 |
+.
+.
+.
+(the new ones will be added in the next user instance)
+
+## Step-by-Step Guide
+
+### Step 1: Train the Model (One-Time Setup)
+
+```bash
+# Basic training (original dataset only) ->>>> THIS IS NEEDED ONLY ONCE
+python DAA-Collab/utils/ML/ml_based_intent_classification/standalone_training.py
+
+# Advanced: Include validated memory interactions ->>>> WHENEVER THE USER WANTS TO INCLUDE THE MEMORY DATA FROM PAST USER EXPERIENCES.
+python DAA-Collab/utils/ML/ml_based_intent_classification/standalone_training.py --include-memory
+```
+
+**What happens during training:**
+- Loads training data from `DAA-Collab/data/user_prompt_dataset/user_prompts_intent_v1.csv`
+- Creates semantic embeddings using Sentence Transformers
+- Computes prototype vectors for each intent class
+- Saves models to saved_models_transformer
+
+**Expected output:**
+```
+✅ Model trained and saved
+   - intent_prototypes.joblib (9 intent embeddings)
+   - intent_classes.joblib (intent label list)
+```
+
+### Step 2: Test Classification (Standalone)
+
+```bash
+python DAA-Collab/test.py \
+  --instruction "Show me accidents on Highway 1 between 8-10 AM" \
+  --file "DAA-Collab/traffic_incidents_data.csv"
+```
+
+**Sample output:**
+```
+🎯 INTENT CLASSIFICATION NODE
+════════════════════════════════════════════════════════════════
+User Input: Show me accidents on Highway 1 between 8-10 AM
+
+SEMANTIC SIMILARITY SCORES
+════════════════════════════════════════════════════════════════
+  [✓] spatio_temporal         : 0.892
+  [✓] incident_detection      : 0.815
+  [ ] traffic_impact          : 0.543
+  [ ] causal_analysis         : 0.312
+
+📊 FINAL RESULTS:
+   Known intents: ['spatio_temporal', 'incident_detection']
+   Unknown intents: None
+   Combined: ['spatio_temporal', 'incident_detection']
+
+💾 Stored in LangGraph Memory
+   Checkpoint ID: ckpt_a3f2b9c1d4e5
+```
+
+### Step 3: Use in Production (LangGraph Integration)
+
+The intent classifier is automatically called by the LangGraph agent:
+
+```python
+# In main.py or your graph execution
+from func.graph.graph_build import build_graph
+
+# Build and compile graph
+graph = build_graph()
+app = graph.compile()
+
+# Run with user query
+result = app.invoke({
+    "instruction": "Detect traffic anomalies in downtown",
+    "file_path": "traffic_incidents_data.csv"
+})
+
+# Access results
+print(result["predicted_classified_intents"])  # All intents
+print(result["known_intents"])                 # Known intents only
+print(result["unknown_intents"])               # Unknown intents only
+```
+
+## Understanding the Output
+
+### Known Intents
+Detected using semantic similarity against trained prototypes:
+
+```python
+# confidence_scores format
+{
+    "spatio_temporal": 0.892,
+    "incident_detection": 0.815,
+    "traffic_impact": 0.543,
+    ...
+}
+
+# predicted_intents (above threshold=0.7)
+["spatio_temporal", "incident_detection"]
+```
+
+### Unknown Intents
+Extracted using local LLM (Qwen2.5-7B-Instruct):
+
+```python
+# Example: User asks "Generate PDF report"
+{
+    "known_intents": ["visualization"],
+    "unknown_intents": ["report_generation", "pdf_export"]
+}
+```
+
+## Configuration
+
+### Adjust Thresholds
+
+Edit thresholds in intent_classification_node.py:
+
+```python
+intent_dict, confidence_scores, predicted_intents, unknown_intents = user_intent_classification_ml_based(
+    prompt=preprocessed['cleaned'],
+    threshold=0.700,         # Known intent threshold (0.0-1.0)
+    unknown_threshold=0.5,   # LLM confidence threshold
+    debug=True
+)
+```
+
+### Enable GPU Acceleration
+
+In model_transformer.py:
+
+```python
+import torch
+
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+```
+
+## Memory & Continuous Learning
+
+### View Memory Statistics
+
+```python
+from utils.memory.episodic import get_intent_memory
+
+memory = get_intent_memory()
+stats = memory.get_statistics()
+
+print(f"Total interactions: {stats['total_interactions']}")
+print(f"Validated: {stats['validated_interactions']}")
+print(f"Intent distribution: {stats['intent_distribution']}")
+```
+
+### Export Training Data
+
+```python
+# Export validated interactions for retraining
+memory = get_intent_memory()
+csv_file = memory.export_to_training_dataset(
+    validated_only=True,
+    output_file="data/memory/validated_interactions.csv"
+)
+```
+
+### Retrain with Memory
+
+```bash
+# Include validated memory interactions in training
+python DAA-Collab/utils/ML/ml_based_intent_classification/standalone_training.py --include-memory
+```
+
+## Troubleshooting
+
+### Error: "Model files not found"
+
+**Solution:** Train the model first:
+```bash
+python DAA-Collab/utils/ML/ml_based_intent_classification/standalone_training.py
+```
+
+### Error: "No validated interactions found"
+
+**Cause:** Training with `--include-memory` but no interactions validated yet.
+
+**Solution:** Either:
+1. Run without `--include-memory` flag
+2. Validate some interactions in memory first
+
+### Low Confidence Scores
+
+**Potential causes:**
+- User query too different from training examples
+- Ambiguous phrasing
+- New domain terminology
+
+**Solutions:**
+1. Add similar examples to training dataset
+2. Lower threshold temporarily
+3. Use unknown intent extraction (automatic)
+
+### Unknown Intent Extractor Not Working
+
+**Check:**
+1. LLM model loaded: Check console for "✅ Local LLM loaded (Qwen2.5-7B-Instruct)"
+2. GPU/CPU memory: LLM requires ~8GB RAM/VRAM
+3. Debug output: Set `debug=True` in prediction call
+
+## File Structure
+
+```
+DAA-Collab/
+├── utils/ML/ml_based_intent_classification/
+│   ├── standalone_training.py          # Training script
+│   ├── model_transformer.py            # Core model logic
+│   ├── intent_classification.py        # Main API
+│   └── saved_models_transformer/       # Trained models (auto-generated)
+│       ├── intent_prototypes.joblib
+│       └── intent_classes.joblib
+├── func/nodes/
+│   └── intent_classification_node.py   # LangGraph node
+├── utils/memory/
+│   └── episodic.py                     # Memory management
+├── data/
+│   ├── user_prompt_dataset/            # Training data
+│   └── memory/                         # Interaction logs (auto-generated)
+└── test.py                             # Standalone testing
+```
+
+## Performance Metrics
+
+| Metric | Value |
+|--------|-------|
+| Training Time | ~2-3 minutes (CPU), ~30 seconds (GPU) |
+| Inference Time | ~200-500ms per query |
+| Model Size | ~500MB (embeddings) + ~7GB (LLM) |
+| Memory Usage | ~8GB RAM recommended |
+
+## Next Steps
+
+1. **Test with your queries:**
+   ```bash
+   python DAA-Collab/test.py \
+     --instruction "Your custom query here" \
+     --file "DAA-Collab/traffic_incidents_data.csv"
+   ```
+
+2. **Integrate with full agent:**
+   ```bash
+   python DAA-Collab/main.py
+   ```
+
+3. **Monitor memory statistics:**
+   - Check `data/memory/intent_memory_metadata.jsonl`
+   - Review confidence scores for each interaction
+
+4. **Retrain periodically:**
+   - Export validated interactions
+   - Retrain with `--include-memory`
+   - Compare performance improvements
+
+## Support
+
+- **Training issues:** Check standalone_training.py
+- **Classification logic:** See model_transformer.py
+- **Memory management:** Review episodic.py
+- **LangGraph integration:** Check intent_classification_node.py
+
+---
+
+**Ready to start? Run the training command above and test with a sample query!**
