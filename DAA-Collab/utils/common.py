@@ -182,8 +182,10 @@ class PromptPreprocessor:
         
         return cleaned, removed_terms
     
-    def normalize_whitespace(self, text: str) -> str:
+    def normalize_whitespace(self, text: Optional[str]) -> str:
         """Remove extra whitespace and normalize spacing"""
+        if text is None:
+            return ""
         text = re.sub(r'\s+', ' ', text)
         text = text.strip()
         return text
@@ -272,7 +274,7 @@ class PromptPreprocessor:
         
         return text, list(set(spatial_entities))
     
-    def preprocess(self, prompt: str, debug: bool = False) -> Dict[str, Any]:
+    def preprocess(self, prompt: Optional[str], debug: bool = False) -> Dict[str, Any]:
         """
         Main preprocessing pipeline.
         
@@ -374,7 +376,7 @@ def get_preprocessor() -> PromptPreprocessor:
     return _preprocessor
 
 
-def preprocess_prompt(prompt: str, debug: bool = False) -> Dict[str, Any]:
+def preprocess_prompt(prompt: Optional[str], debug: bool = False) -> Dict[str, Any]:
     """Convenience function for preprocessing"""
     preprocessor = get_preprocessor()
     return preprocessor.preprocess(prompt, debug=debug)

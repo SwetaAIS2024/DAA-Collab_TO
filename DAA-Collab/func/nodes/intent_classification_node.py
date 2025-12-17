@@ -51,15 +51,15 @@ def intent_classification(state: AgentState) -> AgentState:
     print(f"User Input: {user_instruction}\n")
     
     try:
-
+        
+        intent_threshold = 0.78
         # Get preprocessed prompt for metadata
         preprocessed = preprocess_prompt(user_instruction, debug=False)
 
         # Perform intent classification
         intent_dict, confidence_scores, predicted_intents, unknown_intents = user_intent_classification_ml_based(
             prompt=preprocessed['cleaned'],
-            threshold=0.700,
-            unknown_threshold=0.5,
+            threshold=intent_threshold,
             debug=True
         )
         
@@ -73,8 +73,7 @@ def intent_classification(state: AgentState) -> AgentState:
             metadata={
                 'temporal_entities': preprocessed.get('temporal_entities', []),
                 'spatial_entities': preprocessed.get('spatial_entities', []),
-                'threshold': 0.85,
-                'unknown_threshold': 0.5,
+                'threshold': intent_threshold,
                 'known_intents': predicted_intents,
                 'unknown_intents': unknown_intents,
                 'node_name': 'intent_classification',

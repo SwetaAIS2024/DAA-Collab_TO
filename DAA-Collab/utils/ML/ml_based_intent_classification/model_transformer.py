@@ -206,25 +206,11 @@ def load_intent_classifier() -> Tuple[Dict[str, np.ndarray], List[str]]:
 def predict_intents_ml(
     prompt: str, 
     threshold: float = 0.7, 
-    unknown_threshold: float = 0.5,
+    top_k: int = 3, # limit to top K
     debug: bool = True,
-    store_in_memory: bool = False
 ) -> Tuple[List[str], Dict[str, float], List[str]]:
     """
-    Predict intents using semantic similarity.
-    
-    INFERENCE ONLY - No training happens here.
-    
-    Args:
-        prompt: User input text
-        threshold: Similarity threshold (0.0-1.0, default 0.45)
-        debug: Print debug information
-        store_in_memory: DEPRECATED - memory handled by LangGraph node
-    
-    Returns:
-        Tuple of (predicted_intents, confidence_scores)
-        - predicted_intents: List of intent names above threshold
-        - confidence_scores: Dict mapping all intents to their similarity scores (0.0-1.0)
+    Predict intents using semantic similarity + LLM extraction.
     """
     if model is None:
         raise RuntimeError("Sentence Transformer not loaded")
@@ -261,8 +247,29 @@ def predict_intents_ml(
             print(f"  [{status}] {intent:25s}: {score:.3f}")
         print(f"{'='*80}\n")
     
-    # Apply threshold
-    predicted = [intent for intent, score in similarities.items() if score > threshold]
+    # # Apply threshold
+    # predicted = [intent for intent, score in similarities.items() if score > threshold]
+
+    # FIX for getting too many intents
+    # Sort by similarity
+    sorted_intents = sorted(similarities.items(), key=lambda x: x[1], reverse=True)
+    
+    # Apply BOTH threshold AND top-k filtering
+    predicted = []
+    for intent, score in sorted_intents[:top_k]:  # Only consider top K
+        if score > threshold:
+            predicted.append(intent)
+    
+    # Ensure at least we have a minimum relevance gap
+    if len(predicted) > 1:
+        # Check if there's a significant score drop
+        scores = [similarities[i] for i in predicted]
+        score_gap = scores[0] - scores[-1]
+        
+        if score_gap < 0.05:  # If all scores are too similar, keep only top 2
+            predicted = predicted[:2]
+            if debug:
+                print(f"⚠️  Scores too similar (gap: {score_gap:.3f}), limiting to top 2\n")
 
     # ALWAYS run LLM extraction for unknown intents
     # This runs in parallel to known intent detection
@@ -378,30 +385,59 @@ def extract_unknown_intents_with_llm(
         if debug:
             print(f"\n🤖 LLM Response: {response}")
         
-        # Parse JSON response
+        # Parse response
         try:
-            # Extract JSON array from response (handles markdown code blocks)
             import re
-            json_match = re.search(r'\[.*?\]', response, re.DOTALL)
-            if json_match:
-                unknown_intents = json.loads(json_match.group(0))
-                if not isinstance(unknown_intents, list):
-                    unknown_intents = []
+            match = re.search(r'\[([^\]]*)\]', response)
+            if match:
+                list_str = '[' + match.group(1) + ']'
+                extracted = eval(list_str)
+                
+                # CRITICAL FIX: Filter out known intent class names
+                filtered = []
+                for intent in extracted:
+                    intent_lower = intent.lower().strip()
+                    
+                    # Check if it matches ANY known intent class (case-insensitive)
+                    is_known_class = any(
+                        intent_lower == known_class.lower() 
+                        for known_class in known_intent_classes
+                    )
+                    
+                    if is_known_class:
+                        if debug:
+                            print(f"   ⚠️  Filtered '{intent}' - matches known class")
+                        continue
+                    
+                    # Also check similarity to known class names
+                    from difflib import SequenceMatcher
+                    max_similarity = max(
+                        SequenceMatcher(None, intent_lower, kc.lower()).ratio()
+                        for kc in known_intent_classes
+                    )
+                    
+                    if max_similarity > 0.85:  # 85% similarity threshold
+                        if debug:
+                            print(f"   ⚠️  Filtered '{intent}' - too similar to known class")
+                        continue
+                    
+                    filtered.append(intent)
+                
+                if debug:
+                    print(f"🔍 Extracted unknown intents: {filtered}")
+                
+                return filtered
             else:
-                unknown_intents = []
-        except json.JSONDecodeError:
-            unknown_intents = []
+                return []
+                
+        except Exception as e:
             if debug:
-                print(f"⚠️  Failed to parse LLM response as JSON")
-        
-        if debug and unknown_intents:
-            print(f"🔍 Extracted unknown intents: {unknown_intents}")
-        
-        return unknown_intents
-        
+                print(f"⚠️  Could not parse LLM response: {e}")
+            return []
+    
     except Exception as e:
         if debug:
-            print(f"⚠️  Error in LLM unknown intent extraction: {e}")
+            print(f"❌ LLM extraction error: {e}")
         return []
 
 if __name__ == "__main__":

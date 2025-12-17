@@ -5,6 +5,8 @@
 # seaborn==0.13.2
 # scikit-learn==1.5.1
 
+
+PyPDF2
 langchain
 langgraph
 pandas

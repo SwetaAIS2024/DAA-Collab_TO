@@ -53,8 +53,8 @@ class IntentMemoryManager:
     
     def store_interaction(
         self,
-        prompt: str,
-        cleaned_prompt: str,
+        prompt: Optional[str],
+        cleaned_prompt: Optional[str],
         predicted_intents: List[str],
         confidence_scores: Dict[str, float],
         metadata: Optional[Dict[str, Any]] = None,

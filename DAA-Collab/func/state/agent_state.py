@@ -7,8 +7,8 @@ from typing import Any, Dict, List, Optional
 
 @dataclass
 class AgentState:
-    instruction: str
-    dataset_path: str
+    instruction: Optional[str] = None
+    dataset_path: Optional[str] = None
     seed_text: Optional[str] = None
     profile_report: Optional[str] = None
     profile_meta: Optional[Dict[str, Any]] = None
