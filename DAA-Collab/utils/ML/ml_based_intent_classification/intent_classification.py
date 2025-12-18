@@ -8,7 +8,7 @@ from utils.ML.ml_based_intent_classification.model_transformer import (
 def user_intent_classification_ml_based(
     prompt: str, 
     threshold: float = 0.7,
-    debug: bool = True
+    debug: bool = False
 ) -> Tuple[Dict[str, List[str]], Dict[str, float], List[str], List[str]]:
     """
     ML-based intent classification using Sentence Transformers semantic similarity.
@@ -29,15 +29,15 @@ def user_intent_classification_ml_based(
     Raises:
         FileNotFoundError: If model files not found (need to train first)
     """
-    try:
-        # Load the trained model (will raise error if not trained)
-        _, intent_classes = load_intent_classifier()
+    # try:
+    #     # # Load the trained model (will raise error if not trained)
+    #     # _, intent_classes = load_intent_classifier()
         
-    except FileNotFoundError:
-        raise FileNotFoundError(
-            "Intent classification model not found. Please train the model first:\n"
-            "  python -m utils.ML.ml_based_intent_classification.model_transformer"
-        )
+    # except FileNotFoundError:
+    #     raise FileNotFoundError(
+    #         "Intent classification model not found. Please train the model first:\n"
+    #         "  python -m utils.ML.ml_based_intent_classification.model_transformer"
+    #     )
     
     # Get predicted intents and confidence scores
     predicted_intents, confidence_scores, unknown_intents = predict_intents_ml(

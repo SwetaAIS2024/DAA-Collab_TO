@@ -218,12 +218,12 @@ def predict_intents_ml(
     # Load model
     intent_prototypes, intent_classes = load_intent_classifier()
     
-    # Preprocess prompt
-    preprocessed = preprocess_prompt(prompt, debug=debug)
-    cleaned_prompt = preprocessed['cleaned']
+    # # Preprocess prompt
+    # preprocessed = preprocess_prompt(prompt, debug=debug)
+    # cleaned_prompt = preprocessed['cleaned']
     
     # Get prompt embedding
-    prompt_embedding = model.encode([cleaned_prompt], show_progress_bar=False)[0]
+    prompt_embedding = model.encode([prompt], show_progress_bar=False)[0]
     
     # Calculate similarity to each intent prototype
     similarities = {}
