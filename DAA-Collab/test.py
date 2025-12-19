@@ -8,10 +8,10 @@ def main():
     # Step 1: Train the ML model (one-time setup)
     parser = argparse.ArgumentParser(description="Minimal CSV analysis agent")
     parser.add_argument("--instruction", required=True, help="User instruction/query")
-    parser.add_argument("--file", required=True, help="Path to CSV dataset")
+    # parser.add_argument("--file", required=True, help="Path to CSV dataset")
     args = parser.parse_args()
     # Test
-    state = AgentState(args.instruction, args.file)
+    state = AgentState(args.instruction) #, args.file)
 
     result = intent_classification(state)
     print("Classified intents:", result.intent_classification)

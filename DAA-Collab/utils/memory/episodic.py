@@ -55,7 +55,7 @@ class IntentMemoryManager:
         self,
         prompt: Optional[str],
         cleaned_prompt: Optional[str],
-        predicted_intents: List[str],
+        all_intents: List[str],
         confidence_scores: Dict[str, float],
         metadata: Optional[Dict[str, Any]] = None,
         user_feedback: Optional[List[str]] = None
@@ -66,7 +66,7 @@ class IntentMemoryManager:
         Args:
             prompt: Original user prompt
             cleaned_prompt: Preprocessed prompt
-            predicted_intents: List of predicted intent labels
+            all_intents: List of all intent labels extracted from the user query
             confidence_scores: Dict[intent_name, similarity_score]
             metadata: Additional context (temporal/spatial entities, etc.)
             user_feedback: Optional corrected intents if available
@@ -83,7 +83,7 @@ class IntentMemoryManager:
             "timestamp": datetime.now().isoformat(),
             "prompt": prompt,
             "cleaned_prompt": cleaned_prompt,
-            "predicted_intents": predicted_intents,
+            "all_intents": all_intents,
             "confidence_scores": confidence_scores,
             "metadata": metadata or {},
             "user_feedback": user_feedback,
@@ -228,7 +228,7 @@ class IntentMemoryManager:
                 for line in f:
                     try:
                         state = json.loads(line.strip())
-                        if intent in state.get('predicted_intents', []):
+                        if intent in state.get('all_intents', []):
                             interactions.append(state)
                     except json.JSONDecodeError:
                         continue
@@ -276,7 +276,7 @@ class IntentMemoryManager:
             # FIX: Handle case where user_feedback is explicitly None (key exists but value is None)
             intents = interaction.get('user_feedback')
             if not intents:
-                intents = interaction.get('predicted_intents', [])
+                intents = interaction.get('all_intents', [])
             
             # Ensure intents is a list of strings, not None or empty if possible
             if intents is None:
@@ -319,7 +319,7 @@ class IntentMemoryManager:
         # Intent distribution
         intent_distribution: Dict[str, int] = {}
         for interaction in all_interactions:
-            for intent in interaction.get('predicted_intents', []):
+            for intent in interaction.get('all_intents', []):
                 intent_distribution[intent] = intent_distribution.get(intent, 0) + 1
         
         # Average confidence by intent
@@ -433,7 +433,7 @@ def get_intent_memory() -> IntentMemoryManager:
 def store_intent_interaction(
     prompt: str,
     cleaned_prompt: str,
-    predicted_intents: List[str],
+    all_intents: List[str],
     confidence_scores: Dict[str, float],
     **kwargs: Any
 ) -> str:
@@ -447,7 +447,7 @@ def store_intent_interaction(
     return memory.store_interaction(
         prompt=prompt,
         cleaned_prompt=cleaned_prompt,
-        predicted_intents=predicted_intents,
+        all_intents=all_intents,
         confidence_scores=confidence_scores,
         **kwargs
     )

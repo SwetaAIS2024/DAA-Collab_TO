@@ -1,0 +1,8 @@
+id,prompt,intents,timestamp,confidence_avg,validated,feedback_notes
+intent_20251219_163527_360570,generate a report for this attached dataset,['report_generation'],2025-12-19T16:35:27.360570,0.41610127025180393,False,
+intent_20251219_163306_206472,generate a report for this attached dataset,['report_generation'],2025-12-19T16:33:06.206472,0.41610127025180393,False,
+intent_20251219_161921_952753,generate a report for this attached dataset,['visualization'],2025-12-19T16:19:21.952753,0.41610127025180393,False,
+intent_20251219_161724_074630,get the report and  dashboard for this dataset,['visualization'],2025-12-19T16:17:24.074630,0.39295445879300434,False,
+intent_20251219_161642_490555,get the report and  dashboard for this dataset,['visualization'],2025-12-19T16:16:42.490555,0.39295445879300434,False,
+intent_20251219_154809_521681,get the regular dashboard for this dataset,['visualization'],2025-12-19T15:48:09.521681,0.38003210557831657,False,
+intent_20251219_154435_132645,get the regular dashboard for this dataset,['visualization'],2025-12-19T15:44:35.132645,0.3824604352315267,False,
