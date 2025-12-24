@@ -1,0 +1,15 @@
+{
+  "known_intents": ["spatio_temporal", "traffic_monitoring"],
+  "unknown_intents": [],
+  "suppressed_intents": ["traffic_forecasting", "incident_detection"],
+  "constraints": ["no_forecast", "real_time_only"],
+  "confidence": {
+    "spatio_temporal": 0.82,
+    "traffic_monitoring": 0.76
+  },
+  "metadata": {
+    "threshold_used": 0.7,
+    "top_score": 0.82,
+    "num_candidates": 4
+  }
+}

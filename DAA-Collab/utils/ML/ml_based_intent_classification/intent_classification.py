@@ -14,12 +14,18 @@ BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../.."
 sys.path.append(os.path.join(BASE_DIR, "DAA-Collab"))
 DATA_PATH = os.path.join(BASE_DIR, "DAA-Collab/data/user_prompt_dataset/traffic_prompts_realistic_option2_FIXED.csv")
 MODEL_DIR = os.path.join(BASE_DIR,"DAA-Collab/utils/ML/ml_based_intent_classification/saved_models_transformer")
-
 os.makedirs(MODEL_DIR, exist_ok=True)
+
+# global cache for the  models (to avoid the re-loading)
+_embedding_model = None
+_ext_llm_tokenizer = None
+_ext_llm_model = None
+_DEVICE = None
+
 
 def user_query_intent_extraction(
     prompt: str, 
-    threshold: float = 0.7,
+    threshold: float = 0.5,
     debug: bool = False
 ) -> Tuple[Dict[str, List[str]], Dict[str, float], List[str], List[str]]:
 
@@ -35,10 +41,7 @@ def user_query_intent_extraction(
         debug=debug
     )
     
-    all_intents = top_known_intents.copy()
-
-    for unknown in unknown_intents:
-        all_intents.append(unknown)
+    all_intents = top_known_intents + unknown_intents
 
     intent_classification_result = {
         "intents": all_intents,
@@ -46,36 +49,43 @@ def user_query_intent_extraction(
         "unknown_intents": unknown_intents
     }
 
-
     return intent_classification_result, confidence_scores, top_known_intents, unknown_intents
 
 def get_embedding_model(model_name: str = 'Qwen/Qwen3-Embedding-8B') -> SentenceTransformer:
 
+    global _embedding_model, _DEVICE
+
+    # directly return the cached model if available 
+    if _embedding_model is not None:
+        return _embedding_model
+
     # Detect device
-    DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"🖥️ Using device: {DEVICE}")
-    if DEVICE == "cuda":
-        print(f"   GPU: {torch.cuda.get_device_name(0)}")
+    if _DEVICE is None:
+        _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+        print(f"🖥️ Using device: {_DEVICE}")
+        if _DEVICE == "cuda":
+            print(f"   GPU: {torch.cuda.get_device_name(0)}")
 
     # Load pre-trained sentence transformer (cache for offline use)
     try:
         # model = SentenceTransformer('all-MiniLM-L6-v2', cache_folder=MODEL_DIR) 
-        embedding_model = SentenceTransformer(model_name, cache_folder = MODEL_DIR, trust_remote_code=True, device=DEVICE)
-        print("✅ Sentence Transformer model loaded on device:", DEVICE)
+        _embedding_model = SentenceTransformer(
+            model_name, 
+            cache_folder = MODEL_DIR, 
+            trust_remote_code=True, 
+            device=_DEVICE
+            )
+        print("✅ Sentence Transformer model loaded on device:", _DEVICE)
     except Exception as e:
         print(f"⚠️ Error loading Sentence Transformer: {e}")
-        print("   Run: pip install sentence-transformers")
-        embedding_model = None
-    
-    if embedding_model is None:
-        raise RuntimeError("Sentence Transformer not available. Install: pip install sentence-transformers")
-
-    return embedding_model
+        raise RuntimeError("Sentence transformer model not available")
+       
+    return _embedding_model
 
 def get_all_intents(
     prompt: str, 
-    threshold: float = 0.7, 
-    top_k: int = 3, # limit to top K
+    threshold: float = 0.5, 
+    top_k: int = 2, # limit to top K
     debug: bool = True,
 ) -> Tuple[List[str], Dict[str, float], List[str]]:
     """
@@ -130,23 +140,36 @@ def get_all_intents(
         scores = [similarities[i] for i in predicted]
         score_gap = scores[0] - scores[-1]
         
-        if score_gap < 0.05:  # If all scores are too similar, keep only top 2
-            predicted = predicted[:2]
+        if score_gap < 0.03:  # If gap is less than 0.1, keep only top 1
             if debug:
-                print(f"⚠️  Scores too similar (gap: {score_gap:.3f}), limiting to top 2\n")
+                print(f"⚠️  Small score gap (gap: {score_gap:.3f}), limiting to top 1\n")
 
-    # ALWAYS run LLM extraction for unknown intents
-    # This runs in parallel to known intent detection
-    unknown_intents = extract_unknown_intents_llm(
-        prompt=prompt,
-        known_intents=predicted,
-        known_intent_classes=intent_classes,
-        debug=debug
+        elif score_gap < 0.05:  # If all scores are too similar, keep only top 2
+            # moderate gap - limiting to top 3
+            predicted = predicted[:3]
+            if debug:
+                print(f"⚠️  Small score gap  (gap: {score_gap:.3f}), limiting to top 3\n")
+
+    extract_unknown_intents_flag = (
+        not predicted or #No known intents detected 
+        top_score< 0.6 # Low confidence in top known intent
     )
+    
+    if extract_unknown_intents_flag:
+        unknown_intents = extract_unknown_intents_llm(
+            prompt=prompt,
+            known_intents=predicted,
+            known_intent_classes=intent_classes,
+            debug=debug
+        )
+    else:
+        unknown_intents = []
+        if debug:
+            print(f"⏭️ Skipping unknown intent extraction (strong known match: {top_score:.3f})\n")
     
     # Fallback: if NO intents detected at all (known OR unknown), use top intent
     if not predicted and not unknown_intents:
-        if top_score > 0.3:  # Minimum fallback threshold
+        if top_score > 0.4:  # Minimum fallback threshold
             predicted = [top_intent]
             if debug:
                 print(f"⚠️  Fallback: Using top intent '{top_intent}' (score: {top_score:.3f})\n")
@@ -176,39 +199,44 @@ def load_past_intent_centroids_index() -> Tuple[Dict[str, np.ndarray], List[str]
     return intent_prototypes, intent_classes
 
 def load_unknown_intent_extractor_llm():
+    global _ext_llm_tokenizer, _ext_llm_model, _DEVICE
     
-    # Detect device
-    DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"🖥️ Using device: {DEVICE}")
-    if DEVICE == "cuda":
-        print(f"   GPU: {torch.cuda.get_device_name(0)}")
+    #directly return the cached model if available
+    if _ext_llm_tokenizer is not None and _ext_llm_model is not None:
+        return _ext_llm_tokenizer, _ext_llm_model
+    
+    # Detect device once
+    if _DEVICE is None:
+        _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+        print(f"🖥️ Using device: {_DEVICE}")
+        if _DEVICE == "cuda":
+            print(f"   GPU: {torch.cuda.get_device_name(0)}")
 
-    ext_llm_tokenizer, ext_llm_model = None, None
     MODEL_EXTRACT_UNKNOWN = 'Qwen/Qwen2.5-7B-Instruct' # this model is used for extracting the unknown intents
     
-    try:
-        if ext_llm_model is None or ext_llm_tokenizer is None:
-            from transformers import AutoTokenizer, AutoModelForCausalLM
-            print(f"🔄 Loading extraction LLM model: {MODEL_EXTRACT_UNKNOWN}")
-            ext_llm_tokenizer = AutoTokenizer.from_pretrained(
-                MODEL_EXTRACT_UNKNOWN, 
-                cache_dir=MODEL_DIR, 
-                trust_remote_code=True
-                )
-            ext_llm_model = AutoModelForCausalLM.from_pretrained(
-                MODEL_EXTRACT_UNKNOWN, 
-                cache_dir=MODEL_DIR, 
-                trust_remote_code=True, 
-                dtype=torch.float16 if DEVICE=="cuda" else torch.float32,
-                device_map="auto" if DEVICE=="cuda" else None,
-                low_cpu_mem_usage=True
-                )
-            print("✅ Extraction LLM model loaded.")
+    try: 
+        from transformers import AutoTokenizer, AutoModelForCausalLM
+        print(f"🔄 Loading extraction LLM model: {MODEL_EXTRACT_UNKNOWN}")
+        _ext_llm_tokenizer = AutoTokenizer.from_pretrained(
+            MODEL_EXTRACT_UNKNOWN, 
+            cache_dir=MODEL_DIR, 
+            trust_remote_code=True
+            )
+        _ext_llm_model = AutoModelForCausalLM.from_pretrained(
+            MODEL_EXTRACT_UNKNOWN, 
+            cache_dir=MODEL_DIR, 
+            trust_remote_code=True, 
+            dtype=torch.float16 if _DEVICE=="cuda" else torch.float32,
+            device_map="auto" if _DEVICE=="cuda" else None,
+            low_cpu_mem_usage=True
+            )
+        print("✅ Extraction LLM model loaded.")
     except Exception as e:
         print(f"⚠️ Error loading extraction LLM: {e}")
-        ext_llm_tokenizer = None
-        ext_llm_model = None
-    return ext_llm_tokenizer, ext_llm_model
+        _ext_llm_tokenizer = None
+        _ext_llm_model = None
+    
+    return _ext_llm_tokenizer, _ext_llm_model
 
 def extract_unknown_intents_llm(
     prompt: str,
@@ -218,16 +246,45 @@ def extract_unknown_intents_llm(
 ) -> List[str]:
 
     import json
-    # Detect device
-    DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"🖥️ Using device: {DEVICE}")
-    if DEVICE == "cuda":
-        print(f"   GPU: {torch.cuda.get_device_name(0)}")
-
+   
     try:
         # Load local LLM
         ext_llm_tokenizer, ext_llm_model = load_unknown_intent_extractor_llm()
         
+        if ext_llm_tokenizer is None or ext_llm_model is None:
+            if debug:
+                print("⚠️  Extraction LLM model not available.")
+            return []
+
+        # Map common synonyms to known intents
+        SYNONYM_MAP = {
+            'graph': 'visualization',
+            'plot': 'visualization',
+            'chart': 'visualization',
+            'visual': 'visualization',
+            'accident': 'incident_detection',
+            'crash': 'incident_detection',
+            'collision': 'incident_detection',
+            'time': 'spatio_temporal',
+            'date': 'spatio_temporal',
+            'location': 'spatio_temporal',
+            'timing': 'spatio_temporal',
+        }
+
+        # Pre-filter prompt terms
+        prompt_lower = prompt.lower()
+        likely_known = any(
+            synonym in prompt_lower 
+            for synonym in SYNONYM_MAP.keys()
+        )
+
+        # If prompt contains known synonyms AND we have known_intents detected,
+        # be even MORE conservative with LLM extraction
+        if likely_known and known_intents:
+            # Increase filtering threshold
+            max_similarity = 0.7  # Instead of 0.85
+
+
         # Create extraction prompt
         system_prompt = f"""You are an intent extraction expert for traffic analysis systems.
 
@@ -235,22 +292,29 @@ def extract_unknown_intents_llm(
         {', '.join(known_intent_classes)}
 
         Your task:
-        1. Analyze the user prompt
-        2. Identify ANY intents or tasks mentioned
-        3. Compare against the known intent types
-        4. Extract ONLY the intents that are NOT covered by the known types
+        Known intent types ALREADY in the system (DO NOT extract these):
+        - visualization: Creating graphs, charts, plots, visual representations
+        - incident_detection: Finding, detecting, identifying accidents/incidents
+        - spatio_temporal: Location-based analysis, time-based analysis, date filtering
+        - meta_attributes: Data attributes, severity, type classification
+        - traffic_impact: Traffic flow analysis, congestion, impact assessment
+        - incident_classification: Categorizing incident types
+        - traffic_anomaly: Detecting unusual patterns
+
+        Full list: {', '.join(known_intent_classes)}
 
         CRITICAL RULES:
-        1. ONLY extract intents that are COMPLETELY DIFFERENT from the known types
-        2. If the user's request can be satisfied by ANY combination of known intents, return []
-        3. Extract ONLY if the request involves entirely new capabilities (e.g., "send email", "generate PDF")
+        1. The user query "get me the graph" → THIS IS 'visualization' (KNOWN)
+        2. "accident prone roads" → THIS IS 'incident_detection' (KNOWN)  
+        3. "timings" → THIS IS 'spatio_temporal' (KNOWN)
+        4. ONLY extract if request involves COMPLETELY NEW capabilities like:
+        - "send email" → email_notification (NEW)
+        - "generate PDF" → pdf_export (NEW)
+        - "play sound alert" → audio_alert (NEW)
 
-        Return ONLY a JSON array of unknown intent descriptions (1-3 words each). If all intents are covered by known types, return an empty array [].
+        If ALL parts of the query can be satisfied by known intents, return [].
 
-        Example:
-        User: "Detect incidents and generate a PDF report"
-        Known intents detected: ["incident_detection"]
-        Output: ["report_generation", "pdf_export"]
+        Return ONLY a JSON array of NEW capabilities not in the known list.
 
         Now analyze:"""
 
@@ -274,7 +338,7 @@ def extract_unknown_intents_llm(
         )
         
         # Tokenize
-        inputs = ext_llm_tokenizer([text], return_tensors="pt").to(DEVICE)
+        inputs = ext_llm_tokenizer([text], return_tensors="pt").to(_DEVICE)
         
         # Generate
         with torch.no_grad():

@@ -21,7 +21,7 @@ def intent_classification(state: AgentState) -> AgentState:
     
     try:
         
-        intent_threshold = 0.78
+        intent_threshold = 0.75
         # Get preprocessed prompt for metadata
         preprocessed = preprocess_prompt(user_instruction, debug=False)
 
