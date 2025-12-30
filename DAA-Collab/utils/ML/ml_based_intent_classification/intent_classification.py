@@ -131,7 +131,7 @@ def get_all_intents(
     # Apply BOTH threshold AND top-k filtering
     predicted = []
     for intent, score in sorted_intents[:top_k]:  # Only consider top K
-        if score > threshold:
+        if score >= threshold:
             predicted.append(intent)
     
     # Ensure at least we have a minimum relevance gap
