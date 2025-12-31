@@ -22,3 +22,4 @@ torch
 langchain_openai
 transformers
 accelerate
+chainlit
