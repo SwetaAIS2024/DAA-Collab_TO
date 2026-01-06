@@ -1,0 +1,318 @@
+================================================================================
+INTENT CLASSIFICATION TEST QUERIES
+================================================================================
+Organized by: Single Intent → Multi-Intent → Edge Cases
+Each section ordered by complexity (simple → complex)
+
+================================================================================
+SECTION A: SINGLE INTENT QUERIES
+================================================================================
+
+--------------------------------------------------------------------------------
+A1. INCIDENT DETECTION
+    Expected: incident_detection
+--------------------------------------------------------------------------------
+accidents
+How many accidents happened yesterday?
+List road accidents in downtown area
+What incidents occurred last week?
+Count of crashes on expressway
+Show me all traffic incidents on highway 5
+List all breakdowns reported today
+Which junctions have the highest incident rates?
+
+--------------------------------------------------------------------------------
+A2. SPATIO-TEMPORAL
+    Expected: spatio_temporal (often combined with incident_detection)
+--------------------------------------------------------------------------------
+Crashes near Marina Bay today
+Incidents at junction 5 this morning
+Traffic incidents in Jurong East last Monday
+Show accidents on Orchard Road between 8am and 10am
+Which road in PIE Changi has the max number of traffic incidents?
+All incidents near Changi Airport today
+Crashes on the Woodlands Causeway
+Accidents within 5km of Toa Payoh MRT
+Road closures in the CBD area
+Show morning rush hour incidents for this week
+What happened on New Year's Eve?
+Incidents during school holidays last year
+Traffic problems at midnight last Saturday
+
+--------------------------------------------------------------------------------
+A3. META ATTRIBUTES
+    Expected: meta_attributes (often combined with incident_detection)
+--------------------------------------------------------------------------------
+What time do most accidents happen?
+Which road has most traffic violations today?
+What type of vehicles are involved in most accidents?
+Show me the severity of incidents on AYE
+List accident causes on expressway
+How many vehicles were involved in yesterday's crash?
+Show me peak hour accident statistics
+Accidents with more than 3 vehicles involved
+
+--------------------------------------------------------------------------------
+A4. INCIDENT CLASSIFICATION
+    Expected: incident_classification
+--------------------------------------------------------------------------------
+What category does this crash belong to?
+Classify the type of accident at junction 3
+Categorize incidents by severity
+Classify road incidents by vehicle type
+Group accidents by time of day
+Show only major accidents with injuries
+Filter by minor incidents only
+Incidents that required emergency response
+
+--------------------------------------------------------------------------------
+A5. TRAFFIC IMPACT
+    Expected: traffic_impact
+--------------------------------------------------------------------------------
+How long was traffic blocked after the accident?
+Show traffic delays caused by incidents
+Impact of road closure on surrounding areas
+How did the accident affect traffic on PIE?
+What was the congestion impact of yesterday's crash?
+Which crashes caused the longest delays?
+
+--------------------------------------------------------------------------------
+A6. TRAFFIC ANOMALY
+    Expected: traffic_anomaly
+--------------------------------------------------------------------------------
+Unusual congestion detected on highway?
+Detect unusual traffic patterns today
+Find anomalies in accident data this week
+Are there any abnormal spikes in incidents?
+Identify outliers in crash statistics
+
+--------------------------------------------------------------------------------
+A7. CAUSAL ANALYSIS
+    Expected: causal_analysis
+--------------------------------------------------------------------------------
+Why did accidents spike on Monday?
+What causes accidents on slippery roads?
+Why are there so many crashes at junction 5?
+Explain the increase in traffic incidents last month
+What factors contribute to highway crashes?
+
+--------------------------------------------------------------------------------
+A8. TRAFFIC FORECASTING
+    Expected: traffic_forecasting
+--------------------------------------------------------------------------------
+What will be the accident count tomorrow?
+Predict congestion levels for Friday
+Predict traffic incidents for next week
+Estimate crashes for next month
+Forecast accident rates for the holiday season
+
+--------------------------------------------------------------------------------
+A9. VISUALIZATION
+    Expected: visualization
+--------------------------------------------------------------------------------
+Create a pie chart of accident types
+Plot a graph of daily accidents this week
+Show me a bar chart of incidents by road
+Visualize traffic patterns on a map
+Draw a trend line of monthly crashes
+
+--------------------------------------------------------------------------------
+A10. REPORT GENERATION
+     Expected: report_generation
+--------------------------------------------------------------------------------
+Generate a weekly accident report
+Make a safety report for junction 5
+Create a monthly traffic incident summary
+Prepare a report of crashes on PIE
+Generate incident statistics for December
+
+================================================================================
+SECTION B: MULTI-INTENT QUERIES (2 INTENTS)
+================================================================================
+
+--------------------------------------------------------------------------------
+B1. Two Intent Combinations
+--------------------------------------------------------------------------------
+accidents on road 45
+→ Expected: incident_detection, spatio_temporal
+
+Generate a weekly accident report
+→ Expected: incident_detection, report_generation
+
+Plot a graph of daily accidents this week
+→ Expected: visualization, incident_detection
+
+Detect unusual traffic patterns today
+→ Expected: traffic_anomaly, spatio_temporal
+
+How long was traffic blocked after the accident?
+→ Expected: causal_analysis, traffic_impact
+
+Classify the type of accident at junction 3
+→ Expected: incident_detection, incident_classification
+
+Compare accidents between weekdays and weekends
+→ Expected: incident_detection, spatio_temporal
+
+What roads are most dangerous?
+→ Expected: incident_detection, meta_attributes
+
+================================================================================
+SECTION C: MULTI-INTENT QUERIES (3+ INTENTS)
+================================================================================
+
+--------------------------------------------------------------------------------
+C1. Three Intent Combinations
+--------------------------------------------------------------------------------
+Are there any abnormal spikes in incidents?
+→ Expected: incident_detection, incident_classification, traffic_anomaly
+
+Why are there anomalies in traffic patterns and create a visualization
+→ Expected: causal_analysis, traffic_anomaly, visualization
+
+Generate a report with forecast for next month's accidents
+→ Expected: report_generation, traffic_forecasting, incident_detection
+
+Predict and visualize accident trends for holiday season
+→ Expected: traffic_forecasting, visualization, incident_detection
+
+Create a pie chart of accident types
+→ Expected: visualization, incident_detection, incident_classification
+
+--------------------------------------------------------------------------------
+C2. Four+ Intent Combinations (Complex Queries)
+--------------------------------------------------------------------------------
+Show me a chart of accident causes on Orchard Road last week
+→ Expected: visualization, incident_detection, spatio_temporal, causal_analysis
+
+Show me the severity of incidents on AYE
+→ Expected: incident_classification, incident_detection, spatio_temporal, traffic_impact
+
+Create a heatmap of accident hotspots for the past year
+→ Expected: visualization, spatio_temporal, incident_detection
+
+Analyze why certain roads have more accidents and forecast next quarter
+→ Expected: causal_analysis, traffic_forecasting, incident_detection, spatio_temporal
+
+Generate a PDF report of weekly incidents with charts
+→ Expected: report_generation, visualization, incident_detection
+
+Compare severity distribution between highways and local roads
+→ Expected: incident_classification, meta_attributes, visualization, spatio_temporal
+
+================================================================================
+SECTION D: SPECIAL QUERY TYPES
+================================================================================
+
+--------------------------------------------------------------------------------
+D1. Negation and Exclusion Queries
+--------------------------------------------------------------------------------
+Show all incidents except minor ones
+→ Expected: incident_detection, incident_classification
+
+Accidents not involving motorcycles
+→ Expected: incident_detection, meta_attributes
+
+Traffic data excluding weekends
+→ Expected: incident_detection, spatio_temporal
+
+Incidents without injuries
+→ Expected: incident_detection, incident_classification
+
+Crashes not on expressways
+→ Expected: incident_detection, spatio_temporal
+
+Highway incidents excluding expressways
+→ Expected: incident_detection, spatio_temporal
+
+--------------------------------------------------------------------------------
+D2. Natural Language / Conversational Queries
+--------------------------------------------------------------------------------
+I need to know about yesterday's traffic problems
+→ Expected: incident_detection, spatio_temporal
+
+Can you tell me what happened on CTE this morning?
+→ Expected: incident_detection, spatio_temporal
+
+Give me a quick summary of today's incidents
+→ Expected: incident_detection, report_generation
+
+Any major accidents I should know about?
+→ Expected: incident_detection, incident_classification
+
+What's the current traffic situation?
+→ Expected: incident_detection, traffic_impact
+
+--------------------------------------------------------------------------------
+D3. Trend and Comparison Queries
+--------------------------------------------------------------------------------
+Compare this month's accidents to last month
+→ Expected: incident_detection, spatio_temporal
+
+Year-over-year incident trends
+→ Expected: incident_detection, spatio_temporal, visualization
+
+Which day of week has most accidents?
+→ Expected: incident_detection, spatio_temporal, meta_attributes
+
+Hourly distribution of traffic incidents
+→ Expected: incident_detection, spatio_temporal, visualization
+
+Seasonal patterns in road accidents
+→ Expected: incident_detection, spatio_temporal, traffic_anomaly
+
+================================================================================
+SECTION E: EDGE CASES
+================================================================================
+
+--------------------------------------------------------------------------------
+E1. Ambiguous / Minimal Queries
+--------------------------------------------------------------------------------
+hello
+→ Expected: unknown intent / no classification
+
+what can you do?
+→ Expected: unknown intent / system info
+
+accidents
+→ Expected: incident_detection (single word)
+
+show data
+→ Expected: ambiguous - might be visualization
+
+data
+→ Expected: ambiguous
+
+help
+→ Expected: unknown intent
+
+--------------------------------------------------------------------------------
+E2. System / Meta Questions
+--------------------------------------------------------------------------------
+What types of incidents can you detect?
+→ Expected: unknown intent / system info
+
+What data do you have access to?
+→ Expected: unknown intent / system info
+
+How accurate are your predictions?
+→ Expected: unknown intent / system info
+
+Can you export data to Excel?
+→ Expected: unknown intent / system info
+
+================================================================================
+REFERENCE: CANONICAL INTENTS (10 total)
+================================================================================
+1.  incident_detection      - Finding/detecting accidents and incidents
+2.  spatio_temporal         - Location and time-based analysis
+3.  meta_attributes         - Data attributes (vehicle type, severity, etc.)
+4.  incident_classification - Categorizing incident types
+5.  traffic_impact          - Effect on traffic flow, delays, congestion
+6.  traffic_anomaly         - Unusual patterns, outliers, spikes
+7.  causal_analysis         - Why/reasons/causes of incidents
+8.  traffic_forecasting     - Predictions and estimates
+9.  visualization           - Charts, graphs, maps, plots
+10. report_generation       - Generating reports and summaries
+
+================================================================================

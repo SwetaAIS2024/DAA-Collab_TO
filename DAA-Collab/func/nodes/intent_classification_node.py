@@ -21,7 +21,8 @@ def intent_classification(state: AgentState) -> AgentState:
     
     try:
         
-        intent_threshold = 0.75
+        intent_threshold = 0.75  # Lower threshold, but always select at least 3
+        min_intents = 3  # Always return at least 3 intents
         # Get preprocessed prompt for metadata
         preprocessed = preprocess_prompt(user_instruction, debug=False)
 
@@ -29,6 +30,7 @@ def intent_classification(state: AgentState) -> AgentState:
         intent_dict, confidence_scores, top_known_intents, unknown_intents = user_query_intent_extraction(
             prompt=preprocessed['cleaned'],
             threshold=intent_threshold,
+            min_intents=min_intents,
             debug=False
         )
         

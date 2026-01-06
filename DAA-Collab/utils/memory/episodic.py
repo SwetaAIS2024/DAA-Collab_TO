@@ -144,7 +144,11 @@ class IntentMemoryManager:
                             try:
                                 state = json.loads(line.strip())
                                 if state.get('checkpoint_id') == checkpoint_id:
-                                    # Update this interaction with feedback
+                                    # Store original predictions before overwriting
+                                    state['original_predictions'] = state.get('all_intents', [])
+                                    # Update all_intents with user-corrected intents
+                                    state['all_intents'] = correct_intents
+                                    # Also store in user_feedback for tracking
                                     state['user_feedback'] = correct_intents
                                     state['feedback_notes'] = feedback_notes
                                     state['feedback_timestamp'] = datetime.now().isoformat()

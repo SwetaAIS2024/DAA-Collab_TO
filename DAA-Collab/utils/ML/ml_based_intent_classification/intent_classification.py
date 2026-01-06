@@ -25,7 +25,8 @@ _DEVICE = None
 
 def user_query_intent_extraction(
     prompt: str, 
-    threshold: float = 0.5,
+    threshold: float = 0.45,
+    min_intents: int = 3,
     debug: bool = False
 ) -> Tuple[Dict[str, List[str]], Dict[str, float], List[str], List[str]]:
 
@@ -38,6 +39,7 @@ def user_query_intent_extraction(
     top_known_intents, confidence_scores, unknown_intents = get_all_intents(
         prompt=prompt,
         threshold=threshold,
+        min_intents=min_intents,
         debug=debug
     )
     
@@ -84,12 +86,14 @@ def get_embedding_model(model_name: str = 'Qwen/Qwen3-Embedding-8B') -> Sentence
 
 def get_all_intents(
     prompt: str, 
-    threshold: float = 0.5, 
-    top_k: int = 2, # limit to top K
+    threshold: float = 0.45,  # FIXED: Lowered from 0.5
+    top_k: int = 5,
+    min_intents: int = 3,  # Always return at least this many intents
     debug: bool = True,
 ) -> Tuple[List[str], Dict[str, float], List[str]]:
     """
     Predict intents using semantic similarity + LLM extraction.
+    Always returns at least min_intents, even if they are below threshold.
     """
     model = get_embedding_model()
 
@@ -110,7 +114,6 @@ def get_all_intents(
             np.array([prompt_embedding]), 
             np.array([prototype])
         )[0][0]
-        # Ensure float for JSON serialization
         similarities[intent] = float(similarity)
     
     top_intent, top_score = max(similarities.items(), key=lambda x: x[1])
@@ -120,40 +123,58 @@ def get_all_intents(
         print("SIMILARITY SCORES")
         print(f"{'='*80}")
         for intent, score in sorted(similarities.items(), key=lambda x: x[1], reverse=True):
-            status = "✓" if score > threshold else " "
+            status = "✓" if score >= threshold else " "
             print(f"  [{status}] {intent:25s}: {score:.3f}")
         print(f"{'='*80}\n")
     
-    # FIX for getting too many intents
     # Sort by similarity
     sorted_intents = sorted(similarities.items(), key=lambda x: x[1], reverse=True)
     
-    # Apply BOTH threshold AND top-k filtering
+    # Select top K intents above threshold, but ensure at least min_intents
     predicted = []
-    for intent, score in sorted_intents[:top_k]:  # Only consider top K
+    for intent, score in sorted_intents[:top_k]:
         if score >= threshold:
             predicted.append(intent)
     
-    # Ensure at least we have a minimum relevance gap
-    if len(predicted) > 1:
-        # Check if there's a significant score drop
-        scores = [similarities[i] for i in predicted]
-        score_gap = scores[0] - scores[-1]
-        
-        if score_gap < 0.03:  # If gap is less than 0.1, keep only top 1
-            if debug:
-                print(f"⚠️  Small score gap (gap: {score_gap:.3f}), limiting to top 1\n")
-
-        elif score_gap < 0.05:  # If all scores are too similar, keep only top 2
-            # moderate gap - limiting to top 3
-            predicted = predicted[:3]
-            if debug:
-                print(f"⚠️  Small score gap  (gap: {score_gap:.3f}), limiting to top 3\n")
-
+    # Ensure at least min_intents are returned (even if below threshold)
+    if len(predicted) < min_intents:
+        for intent, score in sorted_intents[:min_intents]:
+            if intent not in predicted:
+                predicted.append(intent)
+        # Sort predicted to maintain score order
+        predicted = [intent for intent, _ in sorted_intents if intent in predicted][:min_intents]
+    
+    # DEBUG: Show initial selection
+    if debug:
+        print(f"📌 TOP {top_k} PREDICTIONS (threshold={threshold}, min={min_intents}):")
+        for i, (intent, score) in enumerate(sorted_intents[:top_k]):
+            status = "✓" if intent in predicted else " "
+            print(f"   [{status}] {i+1}. {intent}: {score:.3f}")
+        print()
+    
+    # Calculate score gap between top predictions to detect ambiguity
+    # If multiple intents have similar high scores, the query may need more analysis
+    score_gap = 0.0
+    if len(sorted_intents) >= 2:
+        score_gap = sorted_intents[0][1] - sorted_intents[1][1]
+    
+    # Count how many intents are above a "close to top" threshold (within 0.1 of top)
+    close_intents_count = sum(1 for _, score in sorted_intents[:top_k] if score >= top_score - 0.1)
+    
+    # Extract unknown intents if:
+    # 1. No predictions above threshold, OR
+    # 2. Top score is weak (< 0.6), OR  
+    # 3. Multiple intents have similar high scores (ambiguous query - gap < 0.05 and 3+ close intents)
+    # 4. Top score is moderate (< 0.75) - gives LLM a chance to find specialized intents
     extract_unknown_intents_flag = (
-        not predicted or #No known intents detected 
-        top_score< 0.6 # Low confidence in top known intent
+        not predicted or
+        top_score < 0.6 or
+        (score_gap < 0.05 and close_intents_count >= 3) or
+        top_score < 0.75
     )
+    
+    if debug and extract_unknown_intents_flag:
+        print(f"🔍 Unknown extraction triggered: top_score={top_score:.3f}, gap={score_gap:.3f}, close_intents={close_intents_count}")
     
     if extract_unknown_intents_flag:
         unknown_intents = extract_unknown_intents_llm(
@@ -165,22 +186,30 @@ def get_all_intents(
     else:
         unknown_intents = []
         if debug:
-            print(f"⏭️ Skipping unknown intent extraction (strong known match: {top_score:.3f})\n")
+            print(f"⏭️  Skipping unknown intent extraction (confident match: {top_score:.3f}, gap: {score_gap:.3f})\n")
     
-    # Fallback: if NO intents detected at all (known OR unknown), use top intent
+    # Fallback
     if not predicted and not unknown_intents:
-        if top_score > 0.4:  # Minimum fallback threshold
+        if top_score > 0.4:
             predicted = [top_intent]
             if debug:
                 print(f"⚠️  Fallback: Using top intent '{top_intent}' (score: {top_score:.3f})\n")
     
     if debug:
-        print(f"\n📊 FINAL RESULTS:")
-        print(f"   Known intents: {predicted if predicted else 'None'}")
-        print(f"   Unknown intents: {unknown_intents if unknown_intents else 'None'}")
-        print(f"   Combined: {predicted + unknown_intents}\n")
+        print(f"\n📊 RESULTS:")
+        print(f"   Predicted intents: {predicted if predicted else 'None'}")
+        print(f"   Unknown intents: {unknown_intents if unknown_intents else 'None'}\n")
     
     return predicted, similarities, unknown_intents
+
+
+# Define canonical intents (the 10 original well-defined intents)
+CANONICAL_INTENTS = [
+    'visualization', 'incident_detection', 'spatio_temporal',
+    'meta_attributes', 'traffic_impact', 'incident_classification',
+    'traffic_anomaly', 'causal_analysis', 'traffic_forecasting',
+    'report_generation'
+]
 
 def load_past_intent_centroids_index() -> Tuple[Dict[str, np.ndarray], List[str]]:
 
@@ -363,7 +392,8 @@ def extract_unknown_intents_llm(
             match = re.search(r'\[([^\]]*)\]', response)
             if match:
                 list_str = '[' + match.group(1) + ']'
-                extracted = eval(list_str)
+                # extracted = eval(list_str)
+                extracted = literal_eval(list_str) # safer than eval
                 
                 # CRITICAL FIX: Filter out known intent class names
                 filtered = []

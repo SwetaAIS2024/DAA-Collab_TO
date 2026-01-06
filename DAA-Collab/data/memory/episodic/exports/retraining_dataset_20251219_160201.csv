@@ -1,3 +1,0 @@
-id,prompt,intents,timestamp,confidence_avg,validated,feedback_notes
-intent_20251219_154809_521681,get the regular dashboard for this dataset,['visualization'],2025-12-19T15:48:09.521681,0.38003210557831657,False,
-intent_20251219_154435_132645,get the regular dashboard for this dataset,['visualization'],2025-12-19T15:44:35.132645,0.3824604352315267,False,

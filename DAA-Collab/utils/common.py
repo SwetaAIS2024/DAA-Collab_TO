@@ -64,9 +64,10 @@ class PromptPreprocessor:
         # Enhanced abbreviations (traffic domain + general)
         self.abbreviations = {
             # Traffic locations (Singapore specific)
+            # NOTE: 'pie' needs context check - don't expand if followed by 'chart', 'graph', etc.
             r'\bje\b': 'jurong east',
             r'\bcte\b': 'central expressway',
-            r'\bpie\b': 'pan island expressway',
+            r'\bpie\b(?!\s+chart)': 'pan island expressway',  # Exclude "pie chart"
             r'\baye\b': 'ayer rajah expressway',
             r'\bbke\b': 'bukit timah expressway',
             r'\becp\b': 'east coast parkway',
