@@ -14,6 +14,8 @@ d_venv
 offline_cache/
 offline_cache
 
+# chat history files
+ **/data/chat_history
 # Ignore large model directories but keep joblib files
 **/saved_models_transformer/models--*
 **/saved_models_transformer/**/blobs/

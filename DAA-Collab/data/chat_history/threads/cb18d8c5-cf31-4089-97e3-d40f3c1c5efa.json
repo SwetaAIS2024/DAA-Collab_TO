@@ -1,0 +1,31 @@
+{
+  "id": "cb18d8c5-cf31-4089-97e3-d40f3c1c5efa",
+  "createdAt": "2026-01-07T17:49:25.721461",
+  "name": "generate a report on the traffic congestion at highway 6 due to the accidents this afternoon.",
+  "userId": "anonymous_79068",
+  "userIdentifier": "anonymous_79068",
+  "updatedAt": "2026-01-07T17:54:09.369561",
+  "metadata": {
+    "query_count": 1,
+    "test_results": [
+      {
+        "query": "generate a report on the traffic congestion at highway 6 due to the accidents this afternoon.",
+        "final_intents": [
+          "meta_attributes",
+          "causal_analysis",
+          "traffic_impact",
+          "incident_detection"
+        ],
+        "was_corrected": false,
+        "checkpoint_id": "intent_20260107_174948_755612"
+      }
+    ],
+    "pending_classification": null,
+    "id": "356b2882-024f-46c9-8a61-77b66035677c",
+    "env": {},
+    "chat_settings": {},
+    "user": null,
+    "chat_profile": null,
+    "client_type": "webapp"
+  }
+}

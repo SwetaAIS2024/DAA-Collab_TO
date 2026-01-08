@@ -100,7 +100,7 @@ def build_intent_centroids_index(include_memory_data: bool = False):
     
     print(f"\nTotal unique intents: {len(intent_examples)}")
     print(f"Total [user query - intent] samples: {len(df)}")
-    print("Centroid embeddings for each class are built using all available samples per intent (up to 500 samples each).")
+    print("Centroid embeddings for each class are built using all available samples per intent (up to 1000 samples each).")
     print("\nIntent distribution:")
     for intent, examples in sorted(intent_examples.items(), key=lambda x: len(x[1]), reverse=True):
         print(f"  {intent}: {len(examples)} examples")
@@ -109,8 +109,8 @@ def build_intent_centroids_index(include_memory_data: bool = False):
     
     # Create centroid embeddings for each intent
     for intent, examples in intent_examples.items():
-        # Use top 500 examples per intent (or all if less)
-        sample_examples = examples[:500]
+        # Use top 1000 examples per intent (or all if less)
+        sample_examples = examples[:1000]
         print(f"  Encoding {intent}: {len(sample_examples)} examples...")
 
         # changes HERE for using the GPU for the embedding computation

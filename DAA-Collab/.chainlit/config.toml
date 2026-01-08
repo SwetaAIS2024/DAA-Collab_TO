@@ -44,6 +44,13 @@ edit_message = true
 # Allow users to share threads (backend + UI). Requires an app-defined on_shared_thread_view callback.
 allow_thread_sharing = false
 
+# Disable the like/dislike feedback buttons (we have custom feedback mechanism)
+prompt_playground = false
+
+[features.feedback]
+# Disable built-in feedback buttons since we have custom feedback mechanism
+enabled = false
+
 [features.slack]
 # Add emoji reaction when message is received (requires reactions:write OAuth scope)
 reaction_on_message_received = false
@@ -109,7 +116,7 @@ cot = "full"
 
 # Specify a CSS file that can be used to customize the user interface.
 # The CSS file can be served from the public directory or via an external link.
-# custom_css = "/public/test.css"
+custom_css = "/public/custom.css"
 
 # Specify additional attributes for a custom CSS file
 # custom_css_attributes = "media=\"print\""

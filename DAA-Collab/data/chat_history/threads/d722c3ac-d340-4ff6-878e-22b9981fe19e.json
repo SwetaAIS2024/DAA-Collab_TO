@@ -1,0 +1,28 @@
+{
+  "id": "d722c3ac-d340-4ff6-878e-22b9981fe19e",
+  "createdAt": "2026-01-07T17:20:53.333207",
+  "name": "how me accidents on Highway 1 last week",
+  "updatedAt": "2026-01-07T17:21:26.638408",
+  "metadata": {
+    "query_count": 1,
+    "test_results": [
+      {
+        "query": "how me accidents on Highway 1 last week",
+        "final_intents": [
+          "report_generation",
+          "incident_detection",
+          "visualization"
+        ],
+        "was_corrected": false,
+        "checkpoint_id": "intent_20260107_172116_692704"
+      }
+    ],
+    "pending_classification": null,
+    "id": "f1e3472d-671d-4b7a-9940-f45d7ebe8a23",
+    "env": {},
+    "chat_settings": {},
+    "user": null,
+    "chat_profile": null,
+    "client_type": "webapp"
+  }
+}

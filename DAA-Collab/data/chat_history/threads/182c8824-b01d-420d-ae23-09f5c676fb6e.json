@@ -1,0 +1,56 @@
+{
+  "id": "182c8824-b01d-420d-ae23-09f5c676fb6e",
+  "createdAt": "2026-01-07T17:54:19.239531",
+  "name": "Show me accidents on Highway 1 last week",
+  "userId": "anonymous_79068",
+  "userIdentifier": "anonymous_79068",
+  "updatedAt": "2026-01-07T19:07:00.199305",
+  "metadata": {
+    "query_count": 1,
+    "test_results": [],
+    "pending_classification": {
+      "query": "Show me accidents on Highway 1 last week",
+      "confidence_scores": {
+        "spatio_temporal": 0.7519979476928711,
+        "traffic_impact": 0.7497106790542603,
+        "meta_attributes": 0.7911540865898132,
+        "incident_detection": 0.8177038431167603,
+        "visualization": 0.7891562581062317,
+        "traffic_anomaly": 0.663461446762085,
+        "incident_classification": 0.7808082699775696,
+        "traffic_forecasting": 0.6825153827667236,
+        "causal_analysis": 0.7223119139671326,
+        "report_generation": 0.8550293445587158,
+        "comparison": 0.7142704725265503,
+        "vehicle_type": 0.6472323536872864,
+        "vehicle_detection": 0.6200236678123474,
+        "filtering": 0.594290018081665,
+        "vehicle_classification": 0.5307012796401978
+      },
+      "known_intents": [
+        "report_generation",
+        "incident_detection",
+        "meta_attributes",
+        "visualization",
+        "incident_classification"
+      ],
+      "unknown_intents": [],
+      "selected_intents": [
+        "report_generation",
+        "incident_detection",
+        "meta_attributes",
+        "visualization",
+        "incident_classification"
+      ],
+      "custom_unknown_intents": [],
+      "checkpoint_id": "intent_20260107_175443_053707",
+      "processing_time": 23.79098105430603
+    },
+    "id": "0375efcb-6679-496f-9759-9ee5c8548eea",
+    "env": {},
+    "chat_settings": {},
+    "user": null,
+    "chat_profile": null,
+    "client_type": "webapp"
+  }
+}

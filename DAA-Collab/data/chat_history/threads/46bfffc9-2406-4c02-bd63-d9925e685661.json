@@ -1,0 +1,41 @@
+{
+  "id": "46bfffc9-2406-4c02-bd63-d9925e685661",
+  "createdAt": "2026-01-07T17:46:26.781939",
+  "metadata": {
+    "query_count": 2,
+    "test_results": [
+      {
+        "query": "generate a dashboard report for the traffic incidents reported this afternoon on Highway 5.",
+        "final_intents": [
+          "report_generation",
+          "visualization",
+          "meta_attributes",
+          "incident_detection",
+          "incident_classification"
+        ],
+        "was_corrected": false,
+        "checkpoint_id": "intent_20260107_174040_172080"
+      },
+      {
+        "query": "Show me accidents on Highway 1 last week.",
+        "final_intents": [
+          "report_generation",
+          "incident_detection",
+          "meta_attributes",
+          "visualization",
+          "incident_classification"
+        ],
+        "was_corrected": false,
+        "checkpoint_id": "intent_20260107_174131_667486"
+      }
+    ],
+    "pending_classification": null,
+    "id": "7d21d310-401b-49f0-8a25-5173f01c6161",
+    "env": {},
+    "chat_settings": {},
+    "user": null,
+    "chat_profile": null,
+    "client_type": "webapp"
+  },
+  "updatedAt": "2026-01-07T17:46:26.781939"
+}
