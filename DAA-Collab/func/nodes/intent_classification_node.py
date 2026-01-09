@@ -78,24 +78,6 @@ def intent_classification(state: AgentState) -> AgentState:
         if unknown_intents:
             print(f"\n⚠️  Detected {len(unknown_intents)} unknown intent(s)")
             print(f"   These may require MCP tool generation or clarification")
-            
-            # Incrementally add unknown intents to centroids (background)
-            try:
-                from utils.ML.ml_based_intent_classification.incremental_centroid_update import add_intent_to_centroids
-                import threading
-                
-                user_query = state.instruction
-                for unknown_intent in unknown_intents:
-                    # Run in background thread to not block response
-                    thread = threading.Thread(
-                        target=add_intent_to_centroids,
-                        args=(unknown_intent, user_query),
-                        daemon=True
-                    )
-                    thread.start()
-                    print(f"   🔄 Adding '{unknown_intent}' to centroids (background)")
-            except Exception as e:
-                print(f"   ⚠️  Could not update centroids: {e}")
         
     except FileNotFoundError as e:
         print(f"\n❌ ERROR: {e}")

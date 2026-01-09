@@ -170,7 +170,7 @@ def get_all_intents(
         # not predicted or
         # top_score < 0.7 or
         # (score_gap < 0.1 and close_intents_count >= 2) or
-        top_score < 0.9
+        top_score < 0.85
     )
     
     if extract_unknown_intents_flag:
