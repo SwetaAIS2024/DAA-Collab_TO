@@ -163,20 +163,18 @@ def get_all_intents(
     
     # Extract unknown intents if:
     # 1. No predictions above threshold, OR
-    # 2. Top score is weak (< 0.6), OR  
-    # 3. Multiple intents have similar high scores (ambiguous query - gap < 0.05 and 3+ close intents)
-    # 4. Top score is moderate (< 0.75) - gives LLM a chance to find specialized intents
+    # 2. Top score is weak (< 0.7), OR  
+    # 3. Multiple intents have similar high scores (ambiguous query - gap < 0.1 and 2+ close intents)
+    # 4. Top score is not very confident (< 0.85) - gives LLM a chance to find specialized intents
     extract_unknown_intents_flag = (
-        not predicted or
-        top_score < 0.6 or
-        (score_gap < 0.05 and close_intents_count >= 3) or
-        top_score < 0.75
+        # not predicted or
+        # top_score < 0.7 or
+        # (score_gap < 0.1 and close_intents_count >= 2) or
+        top_score < 0.9
     )
     
-    if debug and extract_unknown_intents_flag:
-        print(f"🔍 Unknown extraction triggered: top_score={top_score:.3f}, gap={score_gap:.3f}, close_intents={close_intents_count}")
-    
     if extract_unknown_intents_flag:
+        print(f"🔍 Unknown extraction triggered: top_score={top_score:.3f}, gap={score_gap:.3f}, close_intents={close_intents_count}")
         unknown_intents = extract_unknown_intents_llm(
             prompt=prompt,
             known_intents=predicted,

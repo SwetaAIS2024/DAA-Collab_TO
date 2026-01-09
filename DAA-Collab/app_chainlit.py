@@ -383,7 +383,7 @@ async def main(message: cl.Message):
     response_parts.append(f"**Processing Time:** {processing_time:.2f}s\n\n")
     response_parts.append("---\n\n")
     
-    # All Predictions sorted by score
+    # All Predictions sorted by score (including unknown intents)
     response_parts.append("**📊 All Predictions (sorted by score):**\n\n")
     sorted_scores = sorted(confidence_scores.items(), key=lambda x: x[1], reverse=True)
     
@@ -392,6 +392,13 @@ async def main(message: cl.Message):
         bar = "█" * bar_length + "░" * (20 - bar_length)
         marker = "✓" if intent in known_intents else " "
         response_parts.append(f"[{marker}] **{rank}. {intent}** — {bar} {score:.3f}\n")
+    
+    # Add unknown intents at the end (they don't have confidence scores)
+    if unknown_intents:
+        for intent in unknown_intents:
+            rank = len(sorted_scores) + 1
+            response_parts.append(f"[✓] **{rank}. {intent}** — 🆕 NEW (LLM extracted)\n")
+            rank += 1
     
     response_parts.append("\n---\n\n")
     response_parts.append("**Is this correct?** Select an action below:\n")
@@ -444,9 +451,12 @@ async def on_correct(action: cl.Action):
         except Exception as e:
             feedback_status = f"⚠️ Error saving: {str(e)}"
         
+        # Combine known intents and unknown intents for display
+        all_final_intents = list(pending['known_intents']) + list(pending.get('unknown_intents', []))
+        
         await cl.Message(
             content=f"✅ **Confirmed!** Intents saved.\n\n"
-                    f"**Final Intents:** {', '.join(pending['known_intents']) if pending['known_intents'] else 'None'}\n"
+                    f"**Final Intents:** {', '.join(all_final_intents) if all_final_intents else 'None'}\n"
                     f"**Checkpoint ID:** `{pending['checkpoint_id']}`\n"
                     f"**Memory Status:** {feedback_status}"
         ).send()
@@ -455,7 +465,7 @@ async def on_correct(action: cl.Action):
         test_results = cl.user_session.get("test_results", [])
         test_results.append({
             "query": pending["query"],
-            "final_intents": pending["known_intents"],
+            "final_intents": all_final_intents,
             "was_corrected": False,
             "checkpoint_id": pending["checkpoint_id"]
         })
@@ -771,6 +781,25 @@ async def on_add_unknown(action: cl.Action):
             
             if msg_parts:
                 await cl.Message(content="\n".join(msg_parts)).send()
+            
+            # Incrementally add new intents to centroids (background)
+            if added_intents:
+                try:
+                    from utils.ML.ml_based_intent_classification.incremental_centroid_update import add_intent_to_centroids
+                    import threading
+                    
+                    user_query = pending.get('query', '')
+                    for new_intent in added_intents:
+                        # Run in background thread to not block UI
+                        thread = threading.Thread(
+                            target=add_intent_to_centroids,
+                            args=(new_intent, user_query),
+                            daemon=True
+                        )
+                        thread.start()
+                        print(f"🔄 Adding '{new_intent}' to centroids (background)")
+                except Exception as e:
+                    print(f"⚠️ Could not update centroids: {e}")
             
             # Refresh the selection interface with updated list
             if added_intents:

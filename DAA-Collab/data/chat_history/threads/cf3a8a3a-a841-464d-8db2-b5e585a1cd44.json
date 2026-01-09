@@ -1,0 +1,51 @@
+{
+  "id": "cf3a8a3a-a841-464d-8db2-b5e585a1cd44",
+  "createdAt": "2026-01-09T11:24:52.577720",
+  "name": "give me an email alert when there is a major accident in highway 5.",
+  "userId": "anonymous_79068",
+  "userIdentifier": "anonymous_79068",
+  "updatedAt": "2026-01-09T11:33:41.447422",
+  "metadata": {
+    "query_count": 5,
+    "test_results": [
+      {
+        "query": "give me an email alert when there is a major accident in highway 5.",
+        "final_intents": [
+          "incident_detection",
+          "meta_attributes",
+          "report_generation",
+          "email_notification"
+        ],
+        "was_corrected": false,
+        "checkpoint_id": "intent_20260109_112516_971269"
+      },
+      {
+        "query": "give me an email alert when there is a major accident in highway 5.",
+        "final_intents": [
+          "email_notification",
+          "incident_detection",
+          "meta_attributes"
+        ],
+        "was_corrected": false,
+        "checkpoint_id": "intent_20260109_112547_432825"
+      },
+      {
+        "query": "do a wide area analysis on the traffic congestion patterns ",
+        "final_intents": [
+          "visualization",
+          "meta_attributes",
+          "traffic_impact"
+        ],
+        "was_corrected": false,
+        "checkpoint_id": "intent_20260109_112706_993523"
+      }
+    ],
+    "pending_classification": null,
+    "id": "5f143fda-ce49-4d6a-b17e-ca8b83eb5023",
+    "env": {},
+    "chat_settings": {},
+    "user": null,
+    "chat_profile": null,
+    "client_type": "webapp"
+  }
+}
