@@ -1,0 +1,61 @@
+INTENT EXTRACTION MODULE - PACKAGE CONTENTS
+============================================
+
+This branch (intent_node_share) contains ONLY the intent extraction module
+for integration into the main DAA project graph.
+
+INCLUDED FILES:
+---------------
+
+1. CORE INTENT CLASSIFICATION:
+   - func/state/agent_state.py
+   - func/nodes/intent_classification_node.py
+   - utils/ML/ml_based_intent_classification/intent_classification.py
+   - utils/ML/ml_based_intent_classification/build_centroids_script.py
+   - utils/ML/ml_based_intent_classification/incremental_centroid_update.py
+
+2. MODEL FILES (Generated):
+   - utils/ML/ml_based_intent_classification/saved_models_transformer/intent_centroids.joblib
+   - utils/ML/ml_based_intent_classification/saved_models_transformer/intent_classes.joblib
+
+3. TRAINING DATA:
+   - utils/ML/ml_based_intent_classification/intent_training_data.json
+
+4. UTILITIES:
+   - utils/common.py (text preprocessing)
+   - utils/memory/episodic.py (feedback storage)
+
+5. MEMORY/DATA:
+   - data/memory/episodic/checkpoints/interactions_history.jsonl
+
+6. TESTING:
+   - test.py (example usage)
+
+7. DOCUMENTATION:
+   - INTEGRATION_GUIDE.txt (complete setup and usage instructions)
+   - requirements_intent_extraction.txt (minimal dependencies)
+   - PACKAGE_CONTENTS.txt (this file)
+
+REMOVED (Not needed for intent extraction):
+--------------------------------------------
+- app_chainlit.py (UI code)
+- .chainlit/ (UI config)
+- public/ (UI assets)
+- func/nodes/planner_node.py (separate module)
+- func/nodes/codegen_node.py (separate module)
+- data/chat_history/ (UI-specific data)
+- data/codegen_requests/ (codegen-specific data)
+- architecture diagrams, old READMEs
+
+QUICK START:
+------------
+1. Install: pip install -r requirements_intent_extraction.txt
+2. Build centroids: python utils/ML/ml_based_intent_classification/build_centroids_script.py
+3. Test: python test.py --instruction "Show me accidents on Highway 1"
+4. See INTEGRATION_GUIDE.txt for complete usage
+
+BRANCH INFO:
+------------
+Branch: intent_node_share
+Purpose: Sharing intent extraction module with main graph team
+Last Updated: January 9, 2026
