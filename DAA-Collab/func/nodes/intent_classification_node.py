@@ -1,8 +1,6 @@
 from func.state.agent_state import AgentState
 from utils.ML.ml_based_intent_classification.intent_classification import user_query_intent_extraction
-from utils.memory.episodic import get_intent_memory, store_intent_interaction
 from utils.common import preprocess_prompt
-from datetime import datetime
 import uuid
 
 def intent_classification(state: AgentState) -> AgentState:
@@ -13,14 +11,9 @@ def intent_classification(state: AgentState) -> AgentState:
     if not state.execution_id:
         state.execution_id = f"exec_{uuid.uuid4().hex[:12]}"
     
-    print("\n" + "="*80)
-    print("🎯 INTENT CLASSIFICATION NODE")
-    print("="*80)
-    print(f"Execution ID: {state.execution_id}")
-    print(f"User Input: {user_instruction}\n")
+    print(f"Intent Classification Node - Processing: {user_instruction}")
     
     try:
-        
         intent_threshold = 0.75  # Lower threshold, but always select at least 3
         min_intents = 3  # Always return at least 3 intents
         # Get preprocessed prompt for metadata
@@ -34,40 +27,10 @@ def intent_classification(state: AgentState) -> AgentState:
             debug=True
         )
         
-        # Store in LangGraph memory
-        memory = get_intent_memory()
-        checkpoint_id = memory.store_interaction(
-            prompt=user_instruction,
-            cleaned_prompt=preprocessed['cleaned'],
-            all_intents=intent_dict['intents'],  # Combined known + unknown
-            confidence_scores=confidence_scores,
-            # THIS IS NOT NEEDED NOW
-            # metadata={
-            #     'temporal_entities': preprocessed.get('temporal_entities', []),
-            #     'spatial_entities': preprocessed.get('spatial_entities', []),
-            #     'threshold': intent_threshold,
-            #     'known_intents': predicted_intents,
-            #     'unknown_intents': unknown_intents,
-            #     'node_name': 'intent_classification',
-            #     'graph_execution_id': state.execution_id,
-            #     'preprocessing_steps': preprocessed.get('processing_steps', [])
-            # }
-        )
-        
-        print(f"💾 Stored in LangGraph Memory")
-        print(f"   Checkpoint ID: {checkpoint_id}")
-        print(f"   Known Intents: {top_known_intents}")
-        print(f"   Unknown Intents: {unknown_intents}")
-        print(f"   Combined: {intent_dict['intents']}")
-        
-        print(f"\nTop 5 Confidence Scores (Known Intents):")
-        for intent, score in sorted(confidence_scores.items(), key=lambda x: x[1], reverse=True)[:5]:
-            status = "✓" if intent in top_known_intents else " "
-            print(f"   [{status}] {intent:25s}: {score:.3f}")
+        print(f"Classified Intents: {intent_dict['intents']}")
         
         # Update state
         state.intent_classification = intent_dict
-        state.mem_checkpoint_id = checkpoint_id
         state.predicted_classified_intents = intent_dict['intents']  # All intents
         state.known_intents = top_known_intents
         state.unknown_intents = unknown_intents
@@ -75,23 +38,14 @@ def intent_classification(state: AgentState) -> AgentState:
         state.classification_success = True
         state.needs_tool_generation = len(unknown_intents) > 0
         
-        if unknown_intents:
-            print(f"\n⚠️  Detected {len(unknown_intents)} unknown intent(s)")
-            print(f"   These may require MCP tool generation or clarification")
-        
     except FileNotFoundError as e:
-        print(f"\n❌ ERROR: {e}")
-        print("   Please build the embeddings for the past user dataset before running the test.")
+        print(f"Error: {e}")
         state.classification_success = False
         state.error_log = [str(e)]
         
     except Exception as e:
-        print(f"\n❌ UNEXPECTED ERROR: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"Error: {e}")
         state.classification_success = False
         state.error_log = [str(e)]
-    
-    print("="*80 + "\n")
     
     return state

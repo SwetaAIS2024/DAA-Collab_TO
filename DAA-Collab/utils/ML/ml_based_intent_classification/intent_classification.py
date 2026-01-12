@@ -1,22 +1,22 @@
 import pandas as pd
 from ast import literal_eval
 import joblib
-import os, sys
+import os
+import sys
 from typing import List, Dict, Tuple
 import numpy as np
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 from utils.common import preprocess_prompt
 import torch
-# MODEL_NAME = 'Alibaba-NLP/gte-large-en-v1.5'
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../.."))
 sys.path.append(os.path.join(BASE_DIR, "DAA-Collab"))
 DATA_PATH = os.path.join(BASE_DIR, "DAA-Collab/data/user_prompt_dataset/traffic_prompts_realistic_option2_FIXED.csv")
-MODEL_DIR = os.path.join(BASE_DIR,"DAA-Collab/utils/ML/ml_based_intent_classification/saved_models_transformer")
+MODEL_DIR = os.path.join(BASE_DIR, "DAA-Collab/utils/ML/ml_based_intent_classification/saved_models_transformer")
 os.makedirs(MODEL_DIR, exist_ok=True)
 
-# global cache for the  models (to avoid the re-loading)
+# Global cache for the models (to avoid re-loading)
 _embedding_model = None
 _ext_llm_tokenizer = None
 _ext_llm_model = None
@@ -27,13 +27,8 @@ def user_query_intent_extraction(
     prompt: str, 
     threshold: float = 0.45,
     min_intents: int = 3,
-    debug: bool = False
+    debug: bool = True
 ) -> Tuple[Dict[str, List[str]], Dict[str, float], List[str], List[str]]:
-
-    # get the embeddings 
-    # build_intent_centroids_index(include_memory_data=True) 
-    # Cannot run this during user query time
-    # Run the build_centroids_script.py to build the centroids index.
 
     # Get predicted intents and confidence scores
     top_known_intents, confidence_scores, unknown_intents = get_all_intents(
@@ -199,15 +194,6 @@ def get_all_intents(
         print(f"   Unknown intents: {unknown_intents if unknown_intents else 'None'}\n")
     
     return predicted, similarities, unknown_intents
-
-
-# Define canonical intents (the 10 original well-defined intents)
-CANONICAL_INTENTS = [
-    'visualization', 'incident_detection', 'spatio_temporal',
-    'meta_attributes', 'traffic_impact', 'incident_classification',
-    'traffic_anomaly', 'causal_analysis', 'traffic_forecasting',
-    'report_generation'
-]
 
 def load_past_intent_centroids_index() -> Tuple[Dict[str, np.ndarray], List[str]]:
 
