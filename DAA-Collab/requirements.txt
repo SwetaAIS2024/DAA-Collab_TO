@@ -22,4 +22,6 @@ torch
 langchain_openai
 transformers
 accelerate
+bitsandbytes
 chainlit
+llama-cpp-python

@@ -11,8 +11,6 @@ def intent_classification(state: AgentState) -> AgentState:
     if not state.execution_id:
         state.execution_id = f"exec_{uuid.uuid4().hex[:12]}"
     
-    print(f"Intent Classification Node - Processing: {user_instruction}")
-    
     try:
         intent_threshold = 0.6  # Lower threshold, but always select at least 1
         min_intents = 1  # Always return at least 1 intent
@@ -27,16 +25,12 @@ def intent_classification(state: AgentState) -> AgentState:
             debug=True
         )
         
-        print(f"Classified Intents: {intent_dict['intents']}")
-        
         # Update state
-        state.intent_classification = intent_dict
-        state.predicted_classified_intents = intent_dict['intents']  # All intents
+        state.all_intents_extracted = intent_dict['intents']  # All intents
         state.known_intents = top_known_intents
         state.unknown_intents = unknown_intents
         state.intent_confidence_scores = confidence_scores
         state.classification_success = True
-        state.needs_tool_generation = len(unknown_intents) > 0
         
     except FileNotFoundError as e:
         print(f"Error: {e}")

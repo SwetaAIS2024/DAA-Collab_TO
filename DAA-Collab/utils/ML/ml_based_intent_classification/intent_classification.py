@@ -3,16 +3,23 @@ from ast import literal_eval
 import joblib
 import os
 import sys
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Union, Any
 import numpy as np
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 from utils.common import preprocess_prompt
 import torch
 
+# Suppress transformers progress bars and logging
+import os
+os.environ['TRANSFORMERS_VERBOSITY'] = 'error'
+os.environ['TRANSFORMERS_NO_ADVISORY_WARNINGS'] = '1'
+import warnings
+warnings.filterwarnings('ignore')
+
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../.."))
 sys.path.append(os.path.join(BASE_DIR, "DAA-Collab"))
-DATA_PATH = os.path.join(BASE_DIR, "DAA-Collab/data/user_prompt_dataset/traffic_prompts_realistic_option2_FIXED.csv")
+# DATA_PATH = os.path.join(BASE_DIR, "DAA-Collab/data/user_prompt_dataset/traffic_prompts_realistic_option2_FIXED.csv")
 MODEL_DIR = os.path.join(BASE_DIR, "DAA-Collab/utils/ML/ml_based_intent_classification/saved_models_transformer")
 os.makedirs(MODEL_DIR, exist_ok=True)
 
@@ -21,6 +28,25 @@ _embedding_model = None
 _ext_llm_tokenizer = None
 _ext_llm_model = None
 _DEVICE = None
+
+def detect_available_memory():
+    """Detect available GPU/RAM and recommend backend"""
+    gpu_memory = 0
+    
+    if torch.cuda.is_available():
+        gpu_memory = torch.cuda.get_device_properties(0).total_memory / (1024**3)  # GB
+    
+    # Decision: Use GGUF if GPU < 12GB or no GPU
+    use_gguf = gpu_memory < 12 if gpu_memory > 0 else True
+    
+    return {
+        'use_gguf': use_gguf,
+        'gpu_memory': gpu_memory,
+        'quantization': 'Q4_K_M' if gpu_memory > 4 else 'Q3_K_M'
+    }
+
+# Detect once at module load
+_HARDWARE_CONFIG = detect_available_memory()
 
 
 def user_query_intent_extraction(
@@ -48,36 +74,122 @@ def user_query_intent_extraction(
 
     return intent_classification_result, confidence_scores, top_known_intents, unknown_intents
 
-def get_embedding_model(model_name: str = 'Qwen/Qwen3-Embedding-8B') -> SentenceTransformer:
-
+def get_embedding_model(model_name: str = 'Qwen/Qwen3-Embedding-8B') -> Union[SentenceTransformer, Any]:
     global _embedding_model, _DEVICE
 
-    # directly return the cached model if available 
     if _embedding_model is not None:
         return _embedding_model
 
-    # Detect device
     if _DEVICE is None:
         _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-        print(f"🖥️ Using device: {_DEVICE}")
-        if _DEVICE == "cuda":
-            print(f"   GPU: {torch.cuda.get_device_name(0)}")
 
-    # Load pre-trained sentence transformer (cache for offline use)
+    # Choose backend based on memory
+    if _HARDWARE_CONFIG['use_gguf']:
+        return _load_embedding_gguf(model_name)
+    else:
+        return _load_embedding_pytorch(model_name)
+
+
+def _load_embedding_pytorch(model_name):
+    """Load embedding with PyTorch (existing implementation)"""
+    global _embedding_model
+    
     try:
-        # model = SentenceTransformer('all-MiniLM-L6-v2', cache_folder=MODEL_DIR) 
+        from transformers import BitsAndBytesConfig
+        
+        quant_config = BitsAndBytesConfig(
+            load_in_8bit=True,
+            llm_int8_threshold=6.0
+        )
+        
         _embedding_model = SentenceTransformer(
             model_name, 
-            cache_folder = MODEL_DIR, 
+            cache_folder=MODEL_DIR, 
             trust_remote_code=True, 
-            device=_DEVICE
-            )
-        print("✅ Sentence Transformer model loaded on device:", _DEVICE)
+            device=_DEVICE,
+            model_kwargs={
+                'quantization_config': quant_config,
+                'device_map': {'': 0}
+            }
+        )
+        precision_str = "8-bit quantization"
     except Exception as e:
-        print(f"⚠️ Error loading Sentence Transformer: {e}")
-        raise RuntimeError("Sentence transformer model not available")
-       
+        _embedding_model = SentenceTransformer(
+            model_name, 
+            cache_folder=MODEL_DIR, 
+            trust_remote_code=True, 
+            device=_DEVICE,
+            model_kwargs={'dtype': torch.float16}
+        )
+        if hasattr(_embedding_model, 'half'):
+            _embedding_model = _embedding_model.half()
+        precision_str = "FP16"
+    
     return _embedding_model
+
+
+def _load_embedding_gguf(model_name):
+    """Load embedding with GGUF for low memory systems"""
+    global _embedding_model
+    
+    try:
+        from llama_cpp import Llama
+        
+        gguf_model_name = model_name.replace('/', '_').lower()
+        model_path = os.path.join(MODEL_DIR, f"{gguf_model_name}_{_HARDWARE_CONFIG['quantization']}.gguf")
+        
+        if not os.path.exists(model_path):
+            return _load_embedding_pytorch(model_name)
+        
+        _embedding_model = Llama(
+            model_path=model_path,
+            embedding=True,
+            n_ctx=512,
+            n_threads=4,
+            n_gpu_layers=35 if _DEVICE == "cuda" else 0,
+            verbose=False
+        )
+        
+    except ImportError:
+        return _load_embedding_pytorch(model_name)
+    except Exception as e:
+        return _load_embedding_pytorch(model_name)
+    
+    return _embedding_model
+
+def unload_embedding_model():
+    """Unload embedding model from memory to free resources"""
+    global _embedding_model
+    
+    if _embedding_model is not None:
+        import gc
+        del _embedding_model
+        _embedding_model = None
+        
+        gc.collect()
+        gc.collect()
+        
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+
+def unload_llm_model():
+    """Unload LLM model from memory to free resources"""
+    global _ext_llm_tokenizer, _ext_llm_model
+    
+    if _ext_llm_tokenizer is not None or _ext_llm_model is not None:
+        import gc
+        del _ext_llm_tokenizer
+        del _ext_llm_model
+        _ext_llm_tokenizer = None
+        _ext_llm_model = None
+        
+        gc.collect()
+        gc.collect()
+        
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
 
 def get_all_intents(
     prompt: str, 
@@ -98,8 +210,14 @@ def get_all_intents(
     # Load model
     intent_prototypes, intent_classes = load_past_intent_centroids_index()
        
-    # Get prompt embedding
-    prompt_embedding = model.encode([prompt], show_progress_bar=False)[0]
+    # Get prompt embedding (handle both PyTorch and GGUF)
+    if _HARDWARE_CONFIG['use_gguf'] and hasattr(model, 'create_embedding'):
+        # GGUF backend
+        embedding_result = model.create_embedding(prompt)
+        prompt_embedding = np.array(embedding_result['data'][0]['embedding'])
+    else:
+        # PyTorch backend
+        prompt_embedding = model.encode([prompt], show_progress_bar=False)[0]
     
     # Calculate similarity to each intent prototype
     similarities = {}
@@ -113,15 +231,6 @@ def get_all_intents(
     
     top_intent, top_score = max(similarities.items(), key=lambda x: x[1])
 
-    if debug:
-        print(f"\n{'='*80}")
-        print("SIMILARITY SCORES")
-        print(f"{'='*80}")
-        for intent, score in sorted(similarities.items(), key=lambda x: x[1], reverse=True):
-            status = "✓" if score >= threshold else " "
-            print(f"  [{status}] {intent:25s}: {score:.3f}")
-        print(f"{'='*80}\n")
-    
     # Sort by similarity
     sorted_intents = sorted(similarities.items(), key=lambda x: x[1], reverse=True)
     
@@ -139,14 +248,6 @@ def get_all_intents(
         # Sort predicted to maintain score order
         predicted = [intent for intent, _ in sorted_intents if intent in predicted][:min_intents]
     
-    # DEBUG: Show initial selection
-    if debug:
-        print(f"📌 TOP {top_k} PREDICTIONS (threshold={threshold}, min={min_intents}):")
-        for i, (intent, score) in enumerate(sorted_intents[:top_k]):
-            status = "✓" if intent in predicted else " "
-            print(f"   [{status}] {i+1}. {intent}: {score:.3f}")
-        print()
-    
     # Calculate score gap between top predictions to detect ambiguity
     # If multiple intents have similar high scores, the query may need more analysis
     score_gap = 0.0
@@ -155,6 +256,9 @@ def get_all_intents(
     
     # Count how many intents are above a "close to top" threshold (within 0.1 of top)
     close_intents_count = sum(1 for _, score in sorted_intents[:top_k] if score >= top_score - 0.1)
+    
+    # Clear the local model reference before potential LLM loading
+    model = None
     
     # Extract unknown intents if:
     # 1. No predictions above threshold, OR
@@ -169,29 +273,28 @@ def get_all_intents(
     )
     
     if extract_unknown_intents_flag:
-        print(f"🔍 Unknown extraction triggered: top_score={top_score:.3f}, gap={score_gap:.3f}, close_intents={close_intents_count}")
+        unload_embedding_model()
+        
+        import gc
+        import time
+        gc.collect()
+        time.sleep(0.5)
+        
         unknown_intents = extract_unknown_intents_llm(
             prompt=prompt,
             known_intents=predicted,
             known_intent_classes=intent_classes,
             debug=debug
         )
+        
+        unload_llm_model()
     else:
         unknown_intents = []
-        if debug:
-            print(f"⏭️  Skipping unknown intent extraction (confident match: {top_score:.3f}, gap: {score_gap:.3f})\n")
     
     # Fallback
     if not predicted and not unknown_intents:
         if top_score > 0.4:
             predicted = [top_intent]
-            if debug:
-                print(f"⚠️  Fallback: Using top intent '{top_intent}' (score: {top_score:.3f})\n")
-    
-    if debug:
-        print(f"\n📊 RESULTS:")
-        print(f"   Predicted intents: {predicted if predicted else 'None'}")
-        print(f"   Unknown intents: {unknown_intents if unknown_intents else 'None'}\n")
     
     return predicted, similarities, unknown_intents
 
@@ -214,42 +317,84 @@ def load_past_intent_centroids_index() -> Tuple[Dict[str, np.ndarray], List[str]
 def load_unknown_intent_extractor_llm():
     global _ext_llm_tokenizer, _ext_llm_model, _DEVICE
     
-    #directly return the cached model if available
     if _ext_llm_tokenizer is not None and _ext_llm_model is not None:
         return _ext_llm_tokenizer, _ext_llm_model
     
-    # Detect device once
     if _DEVICE is None:
         _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-        print(f"🖥️ Using device: {_DEVICE}")
-        if _DEVICE == "cuda":
-            print(f"   GPU: {torch.cuda.get_device_name(0)}")
+    
+    # Choose backend
+    if _HARDWARE_CONFIG['use_gguf']:
+        return _load_llm_gguf()
+    else:
+        return _load_llm_pytorch()
 
-    MODEL_EXTRACT_UNKNOWN = 'Qwen/Qwen2.5-7B-Instruct' # this model is used for extracting the unknown intents
+
+def _load_llm_pytorch():
+    """Load LLM with PyTorch (existing implementation)"""
+    global _ext_llm_tokenizer, _ext_llm_model
+    
+    MODEL_EXTRACT_UNKNOWN = 'Qwen/Qwen2.5-7B-Instruct'
     
     try: 
-        from transformers import AutoTokenizer, AutoModelForCausalLM
-        print(f"🔄 Loading extraction LLM model: {MODEL_EXTRACT_UNKNOWN}")
+        from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
+        
+        quantization_config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_compute_dtype=torch.float16,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_use_double_quant=True
+        )
+        
         _ext_llm_tokenizer = AutoTokenizer.from_pretrained(
             MODEL_EXTRACT_UNKNOWN, 
             cache_dir=MODEL_DIR, 
             trust_remote_code=True
-            )
+        )
+        
         _ext_llm_model = AutoModelForCausalLM.from_pretrained(
             MODEL_EXTRACT_UNKNOWN, 
             cache_dir=MODEL_DIR, 
-            trust_remote_code=True, 
-            dtype=torch.float16 if _DEVICE=="cuda" else torch.float32,
-            device_map="auto" if _DEVICE=="cuda" else None,
+            trust_remote_code=True,
+            quantization_config=quantization_config,
+            device_map="auto",
             low_cpu_mem_usage=True
-            )
-        print("✅ Extraction LLM model loaded.")
+        )
+        
     except Exception as e:
-        print(f"⚠️ Error loading extraction LLM: {e}")
+        print(f"Error loading extraction LLM: {e}")
         _ext_llm_tokenizer = None
         _ext_llm_model = None
     
     return _ext_llm_tokenizer, _ext_llm_model
+
+
+def _load_llm_gguf():
+    """Load LLM with GGUF for low memory systems"""
+    global _ext_llm_model
+    
+    try:
+        from llama_cpp import Llama
+        
+        model_path = os.path.join(MODEL_DIR, f"qwen2.5-7b-instruct-{_HARDWARE_CONFIG['quantization']}.gguf")
+        
+        if not os.path.exists(model_path):
+            return _load_llm_pytorch()
+        
+        _ext_llm_model = Llama(
+            model_path=model_path,
+            n_ctx=2048,
+            n_threads=4,
+            n_gpu_layers=35 if _DEVICE == "cuda" else 0,
+            verbose=False
+        )
+        
+        return _ext_llm_model, _ext_llm_model
+        
+    except ImportError:
+        return _load_llm_pytorch()
+    except Exception as e:
+        return _load_llm_pytorch()
 
 def extract_unknown_intents_llm(
     prompt: str,
@@ -343,36 +488,53 @@ def extract_unknown_intents_llm(
             {"role": "user", "content": user_prompt}
         ]
         
-        # Apply chat template
-        text = ext_llm_tokenizer.apply_chat_template(
-            messages,
-            tokenize=False,
-            add_generation_prompt=True
-        )
-        
-        # Tokenize
-        inputs = ext_llm_tokenizer([text], return_tensors="pt").to(_DEVICE)
-        
-        # Generate
-        with torch.no_grad():
-            outputs = ext_llm_model.generate(
-                **inputs,
-                max_new_tokens=100,
-                temperature=0.5,
-                do_sample=True,
-                top_p=0.9,
-                pad_token_id=ext_llm_tokenizer.eos_token_id
+        # Check if using GGUF backend (check if tokenizer and model are same object)
+        if _HARDWARE_CONFIG['use_gguf'] and ext_llm_tokenizer is ext_llm_model:
+            # GGUF backend - both tokenizer and model are the same Llama object
+            try:
+                response_data = ext_llm_model.create_chat_completion(
+                    messages=messages,  # type: ignore
+                    max_tokens=100,
+                    temperature=0.5,
+                    top_p=0.9,
+                    stream=False
+                )
+                if isinstance(response_data, dict):
+                    response = response_data['choices'][0]['message']['content']  # type: ignore
+                else:
+                    response = "[]"
+            except Exception as e:
+                if debug:
+                    print(f"⚠️ GGUF generation error: {e}")
+                response = "[]"
+        else:
+            # PyTorch backend (existing code)
+            text = ext_llm_tokenizer.apply_chat_template(  # type: ignore
+                messages,
+                tokenize=False,
+                add_generation_prompt=True
             )
+            
+            inputs = ext_llm_tokenizer([text], return_tensors="pt").to(_DEVICE)  # type: ignore
+            
+            with torch.no_grad():
+                outputs = ext_llm_model.generate(  # type: ignore
+                    **inputs,
+                    max_new_tokens=100,
+                    temperature=0.5,
+                    do_sample=True,
+                    top_p=0.9,
+                    pad_token_id=ext_llm_tokenizer.eos_token_id  # type: ignore
+                )
+            
+            response = ext_llm_tokenizer.decode(outputs[0][len(inputs.input_ids[0]):], skip_special_tokens=True)  # type: ignore
         
-        # Decode response
-        response = ext_llm_tokenizer.decode(outputs[0][len(inputs.input_ids[0]):], skip_special_tokens=True)
-        
-        if debug:
-            print(f"\n🤖 LLM Response: {response}")
-        
+
         # Parse response
         try:
             import re
+            if not isinstance(response, str):
+                response = str(response)
             match = re.search(r'\[([^\]]*)\]', response)
             if match:
                 list_str = '[' + match.group(1) + ']'
@@ -409,19 +571,16 @@ def extract_unknown_intents_llm(
                     
                     filtered.append(intent)
                 
-                if debug:
-                    print(f"🔍 Extracted unknown intents: {filtered}")
-                
                 return filtered
             else:
                 return []
                 
         except Exception as e:
             if debug:
-                print(f"⚠️  Could not parse LLM response: {e}")
+                print(f"Could not parse LLM response: {e}")
             return []
     
     except Exception as e:
         if debug:
-            print(f"❌ LLM extraction error: {e}")
+            print(f"LLM extraction error: {e}")
         return []

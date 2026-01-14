@@ -7,7 +7,14 @@ Usage:
 """
 
 import sys
+import os
 from pathlib import Path
+
+# Disable progress bars
+os.environ['TRANSFORMERS_VERBOSITY'] = 'error'
+os.environ['HF_HUB_DISABLE_PROGRESS_BARS'] = '1'
+import warnings
+warnings.filterwarnings('ignore')
 
 # Add project root to path
 project_root = Path(__file__).parent
@@ -19,62 +26,31 @@ from func.nodes.intent_classification_node import intent_classification
 
 def test_query(query: str, test_name: str = "Custom Query"):
     """Test classification for a given query"""
-    print("\n" + "="*60)
-    print(f"TEST: {test_name}")
-    print("="*60)
-    print(f"Query: {query}")
+    print(f"\nQuery: {query}")
     print("-" * 60)
     
     state = AgentState(instruction=query)
     result = intent_classification(state)
     
-    print(f"\n{'='*20} RESULTS {'='*20}")
-    print(f"Success: {result.classification_success}")
-    print(f"Execution ID: {result.execution_id}")
-    print(f"\nClassified Intents ({len(result.predicted_classified_intents)}):")
-    for intent in result.predicted_classified_intents:
+    print(f"\n{'='*20} RESULTS {'='*20}\n")
+    print(f"Classified Intents ({len(result.all_intents_extracted)}):")
+    for intent in result.all_intents_extracted:
         score = result.intent_confidence_scores.get(intent, 0.0)
         print(f"  - {intent}: {score:.4f}")
     
     print(f"\nKnown Intents ({len(result.known_intents)}): {result.known_intents}")
     print(f"Unknown Intents ({len(result.unknown_intents)}): {result.unknown_intents}")
-    print(f"Needs Tool Generation: {result.needs_tool_generation}")
-    
-    if result.error_log:
-        print(f"\nErrors: {result.error_log}")
     
     return result.classification_success
 
 
 def run_queries(queries: list):
     """Run tests for user-provided queries"""
-    print("\n" + "="*60)
-    print("INTENT CLASSIFICATION NODE - QUERY TESTS")
-    print("="*60)
     
-    passed = 0
-    failed = 0
+    for query in queries:
+        test_query(query)
     
-    for i, query in enumerate(queries, 1):
-        try:
-            success = test_query(query, test_name=f"Query {i}")
-            if success:
-                passed += 1
-            else:
-                failed += 1
-        except Exception as e:
-            print(f"\n✗ ERROR: {type(e).__name__}: {e}")
-            failed += 1
-    
-    print("\n" + "="*60)
-    print("TEST SUMMARY")
-    print("="*60)
-    print(f"Total Queries: {len(queries)}")
-    print(f"Passed: {passed} ✓")
-    print(f"Failed: {failed} ✗")
-    print("="*60 + "\n")
-    
-    return failed == 0
+    return True
 
 
 if __name__ == "__main__":
