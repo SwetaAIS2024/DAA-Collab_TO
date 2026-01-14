@@ -26,7 +26,7 @@ _DEVICE = None
 def user_query_intent_extraction(
     prompt: str, 
     threshold: float = 0.45,
-    min_intents: int = 3,
+    min_intents: int = 1,
     debug: bool = True
 ) -> Tuple[Dict[str, List[str]], Dict[str, float], List[str], List[str]]:
 

@@ -14,8 +14,8 @@ def intent_classification(state: AgentState) -> AgentState:
     print(f"Intent Classification Node - Processing: {user_instruction}")
     
     try:
-        intent_threshold = 0.75  # Lower threshold, but always select at least 3
-        min_intents = 3  # Always return at least 3 intents
+        intent_threshold = 0.6  # Lower threshold, but always select at least 1
+        min_intents = 1  # Always return at least 1 intent
         # Get preprocessed prompt for metadata
         preprocessed = preprocess_prompt(user_instruction, debug=False)
 
