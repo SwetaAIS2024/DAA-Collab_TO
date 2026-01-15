@@ -7,6 +7,7 @@ import numpy as np
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 from utils.common import preprocess_prompt
+from utils.prompts import load_intent_extraction_prompts
 import torch
 # MODEL_NAME = 'Alibaba-NLP/gte-large-en-v1.5'
 
@@ -312,44 +313,12 @@ def extract_unknown_intents_llm(
             max_similarity = 0.7  # Instead of 0.85
 
 
-        # Create extraction prompt
-        system_prompt = f"""You are an intent extraction expert for traffic analysis systems.
-
-        Known intent types in the system:
-        {', '.join(known_intent_classes)}
-
-        Your task:
-        Known intent types ALREADY in the system (DO NOT extract these):
-        - visualization: Creating graphs, charts, plots, visual representations
-        - incident_detection: Finding, detecting, identifying accidents/incidents
-        - spatio_temporal: Location-based analysis, time-based analysis, date filtering
-        - meta_attributes: Data attributes, severity, type classification
-        - traffic_impact: Traffic flow analysis, congestion, impact assessment
-        - incident_classification: Categorizing incident types
-        - traffic_anomaly: Detecting unusual patterns
-
-        Full list: {', '.join(known_intent_classes)}
-
-        CRITICAL RULES:
-        1. The user query "get me the graph" → THIS IS 'visualization' (KNOWN)
-        2. "accident prone roads" → THIS IS 'incident_detection' (KNOWN)  
-        3. "timings" → THIS IS 'spatio_temporal' (KNOWN)
-        4. ONLY extract if request involves COMPLETELY NEW capabilities like:
-        - "send email" → email_notification (NEW)
-        - "generate PDF" → pdf_export (NEW)
-        - "play sound alert" → audio_alert (NEW)
-
-        If ALL parts of the query can be satisfied by known intents, return [].
-
-        Return ONLY a JSON array of NEW capabilities not in the known list.
-
-        Now analyze:"""
-
-        user_prompt = f"""User prompt: "{prompt}"
-
-        Known intents already detected: {known_intents if known_intents else "None"}
-
-        Unknown intents (JSON array):"""
+        # Load extraction prompts from centralized prompts folder
+        system_prompt, user_prompt = load_intent_extraction_prompts(
+            prompt=prompt,
+            known_intent_classes=known_intent_classes,
+            known_intents=known_intents
+        )
 
         # Format messages for Qwen
         messages = [

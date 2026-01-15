@@ -240,6 +240,10 @@ class FileDataLayer(BaseDataLayer):
     async def build_debug_url(self) -> str:
         return ""
     
+    async def get_favorite_steps(self, user_id: str) -> List[str]:
+        """Get favorite steps for a user"""
+        return []
+    
     async def close(self) -> None:
         pass
 

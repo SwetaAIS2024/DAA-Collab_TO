@@ -1,0 +1,41 @@
+[
+  {
+    "name": "on_chat_start",
+    "type": "run",
+    "id": "b05a387b-c094-45f5-a79d-a63640f52f82",
+    "threadId": "c658db3c-e815-485e-88d5-6b53df3b16d8",
+    "parentId": null,
+    "streaming": false,
+    "metadata": {},
+    "tags": null,
+    "input": "{}",
+    "isError": false,
+    "output": "",
+    "createdAt": "2026-01-15T09:08:21.116755Z",
+    "start": "2026-01-15T09:08:21.116755Z",
+    "end": "2026-01-15T09:08:21.131912Z",
+    "language": null,
+    "defaultOpen": false,
+    "showInput": "json",
+    "generation": null
+  },
+  {
+    "id": "5a13583e-394a-4a29-9cf4-76df13d36f52",
+    "threadId": "c658db3c-e815-485e-88d5-6b53df3b16d8",
+    "parentId": "b05a387b-c094-45f5-a79d-a63640f52f82",
+    "createdAt": "2026-01-15T09:08:21.119201Z",
+    "command": null,
+    "modes": null,
+    "start": "2026-01-15T09:08:21.119201Z",
+    "end": "2026-01-15T09:08:21.119201Z",
+    "output": "👋 **Welcome to Intent Classification Testing Tool!**\n\nI'll help you test the intent classification system.\n\n**How it works:**\n1. Type any traffic-related query\n2. I'll show you the **Top 5 predicted intents**\n3. You can **select/deselect** the correct intents\n4. You can **add unknown intents** if needed\n\n**Example queries:**\n- *Show me accidents on Highway 1 last week*\n- *Generate a report of traffic violations*\n- *Why are there crashes at junction 5?*\n\nTry it now! 👇",
+    "name": "Assistant",
+    "type": "assistant_message",
+    "language": null,
+    "streaming": false,
+    "isError": false,
+    "waitForAnswer": false,
+    "metadata": {},
+    "tags": null
+  }
+]

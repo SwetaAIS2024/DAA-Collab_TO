@@ -5,6 +5,8 @@ Handles: micro-planning + tool generation + sandbox validation + registry regist
 
 from typing import Dict, List, Optional, Any
 from func.state.agent_state import AgentState
+from func.registry.tool_registry import ToolRegistry
+from utils.prompts import load_codegen_prompt
 import json
 import os
 from datetime import datetime
@@ -40,34 +42,16 @@ def build_dataset_profile() -> Dict:
 
 
 def build_registry_snapshot() -> Dict:
-    """Build current tool registry snapshot"""
-    # For MVP, return empty or minimal registry
-    return {
-        "snapshot_id": f"regsnap_local_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
-        "existing_tools": [
-            {
-                "name": "detect_incidents",
-                "purpose": "extract or filter incident records",
-                "entrypoint": "tools.detect_incidents:run",
-                "input_schema": {"type": "object"},
-                "output_schema": {"type": "object"}
-            },
-            {
-                "name": "render_report",
-                "purpose": "render report from summary tables",
-                "entrypoint": "tools.render_report:run",
-                "input_schema": {"type": "object"},
-                "output_schema": {"type": "object"}
-            }
-        ]
-    }
+    """Build current tool registry snapshot from persistent registry"""
+    registry = ToolRegistry()
+    return registry.get_registry_snapshot()
 
 
-def get_tool_contract_for_capability(capability: str, derived_requirements: Dict) -> Dict:
-    """Get tool contract specification for a given capability"""
+def get_tool_spec_for_capability(capability: str, derived_requirements: Dict) -> Dict:
+    """Get tool specification for a given capability"""
     
-    # Define contracts for known capabilities
-    contracts = {
+    # Define specs for known capabilities
+    specs = {
         "incident_cost_estimation": {
             "name": "incident_cost_estimation",
             "purpose": "Estimate incident-level and aggregated costs for incidents in a time window.",
@@ -124,7 +108,7 @@ def get_tool_contract_for_capability(capability: str, derived_requirements: Dict
                 "deterministic_given_same_inputs"
             ]
         },
-        # Add more capability contracts as needed
+        # Add more capability specs as needed
         "aggregation_summary": {
             "name": "aggregation_summary",
             "purpose": "Aggregate and summarize incident data by specified dimensions",
@@ -146,11 +130,11 @@ def get_tool_contract_for_capability(capability: str, derived_requirements: Dict
         }
     }
     
-    # Return contract if exists, otherwise create generic one
-    if capability in contracts:
-        return contracts[capability]
+    # Return spec if exists, otherwise create generic one
+    if capability in specs:
+        return specs[capability]
     
-    # Generic contract for unknown capabilities
+    # Generic spec for unknown capabilities
     return {
         "name": capability,
         "purpose": f"Tool for {capability} capability",
@@ -173,7 +157,7 @@ def build_codegen_llm_input(
     This is what gets sent to the LLM to generate tool code
     """
     
-    tool_contract = get_tool_contract_for_capability(capability, derived_requirements)
+    tool_spec = get_tool_spec_for_capability(capability, derived_requirements)
     
     codegen_input = {
         "request_meta": {
@@ -204,9 +188,9 @@ def build_codegen_llm_input(
             "dataset_profile": build_dataset_profile()
         },
         
-        "tool_contract": tool_contract,
+        "tool_spec": tool_spec,
         
-        "sandbox_contract": {
+        "sandbox_requirements": {
             "language": "python",
             "python_version": "3.11",
             "allowed_packages": ["pandas", "numpy"],
@@ -214,7 +198,7 @@ def build_codegen_llm_input(
             "workspace_root": f"/mnt/data/tool_build/{request_id}"
         },
         
-        "validation_contract": {
+        "validation_requirements": {
             "acceptance_tests": [
                 {
                     "name": "smoke_schema_and_nonnegativity",
@@ -369,41 +353,8 @@ def load_codegen_model():
 
 def build_codegen_prompt(codegen_input: Dict) -> str:
     """Build prompt for code generation LLM"""
-    
-    tool_contract = codegen_input["tool_contract"]
-    dataset_profile = codegen_input["dataset_context"]["dataset_profile"]
-    context = codegen_input["context"]
-    
-    prompt = f"""You are an expert Python developer. Generate a complete tool package for the following specification.
-
-**User Query:** {context['user_query']}
-
-**Tool Contract:**
-- Name: {tool_contract['name']}
-- Purpose: {tool_contract['purpose']}
-- Input Schema: {json.dumps(tool_contract['input_schema'], indent=2)}
-- Output Schema: {json.dumps(tool_contract['output_schema'], indent=2)}
-- Constraints: {', '.join(tool_contract['semantic_constraints'])}
-
-**Dataset Information:**
-- Columns: {', '.join([col['name'] + ' (' + col['dtype'] + ')' for col in dataset_profile['columns']])}
-- Time Column: {dataset_profile['time_column']}
-- Notes: {'; '.join(dataset_profile['notes'])}
-
-**Requirements:**
-1. Generate a complete `tool.py` with a `run(input_data: dict) -> dict` function
-2. Use only pandas and numpy (no network calls, no external APIs)
-3. Handle missing data gracefully
-4. Return data matching the output schema exactly
-5. Include proper error handling
-6. Add docstrings and comments
-
-**Important:** Return ONLY the Python code for tool.py, no explanations.
-
-```python
-"""
-    
-    return prompt
+    # Load prompt from centralized prompts folder
+    return load_codegen_prompt(codegen_input)
 
 
 def parse_generated_code(llm_response: str, capability: str) -> Dict:
@@ -580,19 +531,24 @@ def validate_in_sandbox(generated_package: Dict) -> Dict:
     }
 
 
-def register_tool(tool_manifest: Dict, validation_result: Dict) -> Dict:
+def register_tool(
+    capability: str,
+    generated_package: Dict,
+    validation_result: Dict,
+    request_metadata: Dict
+) -> Dict:
     """
-    Register tool in registry
-    For MVP, just return confirmation
+    Register tool in persistent registry
+    This closes the tool-coverage loop: generated tools become discoverable
     """
+    registry = ToolRegistry()
     
-    return {
-        "registration_status": "simulated_success",
-        "tool_id": f"tool_{tool_manifest['name']}_001",
-        "registry_location": f"registry/{tool_manifest['name']}.json",
-        "callable": True,
-        "notes": "MVP: Actual registry not implemented yet"
-    }
+    return registry.register_tool(
+        capability=capability,
+        generated_package=generated_package,
+        validation_result=validation_result,
+        request_metadata=request_metadata
+    )
 
 
 def codegen_node(state: AgentState) -> AgentState:
@@ -669,13 +625,21 @@ def codegen_node(state: AgentState) -> AgentState:
         validation_result = validate_in_sandbox(generated_package)
         print(f"✅ Validation: {validation_result['validation_status']}")
         
-        # Step 4: Register tool (simulated for MVP)
-        print("📝 Registering tool (simulated)...")
+        # Step 4: Register tool in persistent registry
+        print("📝 Registering tool in persistent registry...")
         registration_result = register_tool(
-            generated_package["tool_manifest"],
-            validation_result
+            capability=capability,
+            generated_package=generated_package,
+            validation_result=validation_result,
+            request_metadata={
+                "request_id": request_id,
+                "user_query": request["context"]["user_query"],
+                "intent_output": request["context"]["intent_output"],
+                "derived_requirements": request["derived_requirements"]
+            }
         )
         print(f"✅ Tool registered: {registration_result['tool_id']}")
+        print(f"   Registry path: {registration_result['registry_path']}")
         
         # Store results
         generated_tools.append({
